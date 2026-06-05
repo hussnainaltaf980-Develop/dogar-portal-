@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
 
@@ -115,7 +116,7 @@ def on_startup():
             log.warning("Candidate count query failed (likely fresh DB): %s", exc)
             cand_count = 0
 
-        if cand_count == 0:
+        if cand_count == 0 and settings.AUTO_RESTORE_BUNDLED_SQL:
             log.info("AUTO-MIGRATOR: empty DB detected — attempting bundled SQL restore.")
             db.close()                                        # close session so we can rebuild tables
             applied = _apply_bundled_sql_dump()
@@ -127,6 +128,8 @@ def on_startup():
             else:
                 log.info("AUTO-MIGRATOR: no dump applied — running with empty schema (admin seeder will still create the bootstrap user).")
             db = SessionLocal()
+        elif cand_count == 0:
+            log.info("AUTO-MIGRATOR: empty DB but AUTO_RESTORE_BUNDLED_SQL is off — starting with a clean schema.")
         else:
             log.info("AUTO-MIGRATOR: candidate count = %d, existing DB kept as-is.", cand_count)
     finally:
@@ -200,10 +203,28 @@ class CacheHeadersMiddleware(BaseHTTPMiddleware):
             response.headers.setdefault("Cache-Control", "no-cache")
         # Tell browsers we serve modern, secure responses
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        # HSTS only when we are confident we're behind HTTPS (production).
+        if settings.is_production:
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
         return response
 
 
 app.add_middleware(CacheHeadersMiddleware)
+
+# CORS — locked down to an explicit allow-list (empty = same-origin only).
+_cors_origins = settings.cors_origin_list
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Multi-tenant resolver — attaches request.state.tenant for every request.
 # Adding it AFTER CacheHeadersMiddleware so cache decisions can see the tenant.

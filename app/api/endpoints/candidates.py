@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.core.tenancy import get_tenant_db as get_db  # tenant-scoped session (falls back to control DB when no tenant)
 from app.core.deps import get_current_user
 from app.core.permissions import require_permission
 from app.core.config import settings as app_settings

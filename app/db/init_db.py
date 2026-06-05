@@ -128,36 +128,37 @@ def seed_admin_user(db: Session):
 
 
 # ============================================================
-# Permanent super-admin (developer / vendor account)
+# Optional super-admin (vendor / developer account) — ENV-DRIVEN
 # ============================================================
-# Hardcoded developer account that is created on first launch and reset on
-# every startup. This account:
-#   - Has is_super_admin=True (cannot be deleted/demoted by other admins)
-#   - Has must_change_password=False (developer override)
-#   - Has role="admin" with full access
-#   - Is enforced idempotent — if password was changed elsewhere it is
-#     restored on the next startup. This is intentional and documented.
+# SECURITY: There is NO hardcoded super-admin back-door any more. A
+# super-admin is only created/restored when BOTH of these env vars are
+# set (validated for strength by config.assert_production_safe):
 #
-# Per Turn-3 user requirement: "admin email permanently as
-# hussnainmr07@gmail.com and Password 'Romio@786' as super admin full
-# access as developers".
-SUPER_ADMIN_EMAIL = "hussnainmr07@gmail.com"
-SUPER_ADMIN_PASSWORD = "Romio@786"
-SUPER_ADMIN_NAME = "Hussnain (Developer)"
-
-
+#     SUPER_ADMIN_EMAIL=you@example.com
+#     SUPER_ADMIN_PASSWORD=<strong 12+ char password>
+#
+# When unset (the default), this seeder is a no-op — the portal ships
+# with no privileged account other than the bootstrap admin, which is
+# forced to change its password on first login.
 def seed_super_admin(db: Session):
-    """Create or restore the permanent super-admin developer account.
+    """Create or restore an OPTIONAL super-admin account from env config.
 
-    This account is the vendor's perpetual access account. It is restored
-    on every startup so it cannot be locked out by other admins.
+    No-op unless ``SUPER_ADMIN_EMAIL`` and ``SUPER_ADMIN_PASSWORD`` are
+    both configured. When enabled, the account's privileged flags
+    (is_super_admin / role=admin / is_active) are re-asserted on every
+    boot so it cannot be accidentally locked out — but the password is
+    NOT overwritten unless it has been wiped, so the operator may rotate
+    it freely.
     """
-    existing = db.query(User).filter(User.email == SUPER_ADMIN_EMAIL).first()
+    email = (settings.SUPER_ADMIN_EMAIL or "").strip().lower()
+    password = settings.SUPER_ADMIN_PASSWORD or ""
+    if not email or not password:
+        # Feature disabled — no privileged back-door account.
+        return
+
+    name = settings.SUPER_ADMIN_NAME or "Super Admin"
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
-        # Restore canonical state on every boot. We do NOT overwrite the
-        # password unless it has been explicitly cleared, so the developer
-        # can rotate it if they choose — but is_super_admin / role /
-        # is_active are always re-asserted.
         changed = False
         if not existing.is_super_admin:
             existing.is_super_admin = True; changed = True
@@ -167,27 +168,27 @@ def seed_super_admin(db: Session):
             existing.is_active = True; changed = True
         if existing.must_change_password:
             existing.must_change_password = False; changed = True
-        # Restore password if it appears to have been wiped/reset to empty
+        # Restore password only if it appears to have been wiped/cleared.
         if not existing.password_hash:
-            existing.password_hash = hash_password(SUPER_ADMIN_PASSWORD); changed = True
+            existing.password_hash = hash_password(password); changed = True
         if changed:
             db.commit()
-            print(f"\u2713 Super-admin state restored: {SUPER_ADMIN_EMAIL}")
+            print(f"\u2713 Super-admin state restored: {email}")
         return
 
     super_admin = User(
-        name=SUPER_ADMIN_NAME,
-        email=SUPER_ADMIN_EMAIL,
-        password_hash=hash_password(SUPER_ADMIN_PASSWORD),
+        name=name,
+        email=email,
+        password_hash=hash_password(password),
         role="admin",
         is_active=True,
         is_super_admin=True,
-        must_change_password=False,  # developer override
-        designation="Lead Developer",
-        bio="Permanent super-admin developer account.",
+        must_change_password=False,  # vendor override
+        designation="Super Admin",
+        bio="Vendor super-admin account (configured via environment).",
     )
     db.add(super_admin); db.commit()
-    print(f"\u2713 Permanent super-admin created: {SUPER_ADMIN_EMAIL}")
+    print(f"\u2713 Super-admin created from env config: {email}")
 
 
 # ============================================================
@@ -485,6 +486,15 @@ def seed_document_templates(db: Session):
     
     print(f"✓ Document template definitions updated and verified in database")
 def seed_rich_demo_data(db: Session):
+    """Seed fake demo clients/candidates/agents for screenshots & demos.
+
+    SECURITY / DATA-HYGIENE: This is gated behind ``SEED_DEMO_DATA`` and
+    is a no-op unless that flag is explicitly enabled. It must NEVER run
+    in production — it would pollute the live database with junk records.
+    """
+    if not settings.SEED_DEMO_DATA:
+        return
+
     from app.models.client import Client
     from app.models.demand import Demand, JobCategory
     from app.models.candidate import Candidate, CandidateAssignment

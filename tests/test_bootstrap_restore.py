@@ -1,72 +1,69 @@
-"""First-run bundled SQL restore: verify _apply_bundled_sql_dump() works
-on an empty SQLite file and produces the expected real-data row counts."""
+"""Clean-distribution invariants + optional bundled-SQL restore path.
+
+The production-hardened package ships WITHOUT any bundled SQL dump,
+databases, or demo data — a fresh schema is created on first boot. These
+tests assert that invariant, and exercise the optional restore code path
+only when a dump is present (e.g. an operator dropped one in manually).
+"""
 from __future__ import annotations
 import os
 import sqlite3
 import tempfile
 
+import pytest
 
-def test_bundled_sql_dump_exists_in_repo():
-    """The full production dump MUST ship inside the zip."""
-    candidates = [
-        "migrations/dogar_full_backup.sql.gz",
-        "migrations/dogar_full_backup.sql",
-    ]
-    found = [p for p in candidates if os.path.exists(p) and os.path.getsize(p) > 100_000]
-    assert found, (
-        "No bundled SQL dump found. The package MUST include at least one "
-        "of: migrations/dogar_full_backup.sql.gz or .sql (>100 KB)."
+_DUMP_CANDIDATES = [
+    "migrations/dogar_full_backup.sql.gz",
+    "migrations/dogar_full_backup.sql",
+]
+
+
+def _present_dump() -> str | None:
+    for p in _DUMP_CANDIDATES:
+        if os.path.exists(p) and os.path.getsize(p) > 100_000:
+            return p
+    return None
+
+
+def test_clean_package_ships_without_bundled_dump():
+    """The clean distribution must NOT bundle a production SQL dump.
+
+    Shipping a real-data dump would (a) bloat the package and (b) auto-
+    inject third-party data on first boot. The clean build starts from an
+    empty schema instead.
+    """
+    assert _present_dump() is None, (
+        "A bundled SQL dump was found. The clean package must not ship "
+        "migrations/dogar_full_backup.sql[.gz]; a fresh DB is created on boot."
     )
 
 
 def test_bundled_dump_restores_full_dataset():
-    """Apply migrations/dogar_full_backup.sql.gz to a brand new SQLite file
-    and confirm the row counts match the documented production dataset."""
-    src_gz = "migrations/dogar_full_backup.sql.gz"
-    src_plain = "migrations/dogar_full_backup.sql"
-    if os.path.exists(src_gz):
+    """If an operator DOES drop a dump in, the restore path must work.
+
+    Skipped in the clean package (no dump present).
+    """
+    src = _present_dump()
+    if not src:
+        pytest.skip("No bundled SQL dump present (clean distribution)")
+
+    if src.endswith(".gz"):
         import gzip
-        with gzip.open(src_gz, "rt", encoding="utf-8") as fh:
-            sql = fh.read()
-    elif os.path.exists(src_plain):
-        with open(src_plain, "r", encoding="utf-8") as fh:
+        with gzip.open(src, "rt", encoding="utf-8") as fh:
             sql = fh.read()
     else:
-        import pytest
-        pytest.skip("No bundled SQL dump present")
+        with open(src, "r", encoding="utf-8") as fh:
+            sql = fh.read()
 
-    # Apply to a throwaway sqlite file
     fd, path = tempfile.mkstemp(suffix=".db", prefix="dtc_restore_test_")
     os.close(fd)
     try:
         conn = sqlite3.connect(path)
         conn.executescript(sql)
         conn.commit()
-
         c = conn.cursor()
-        # Sanity: the dump should contain real candidates (≥ 2,000)
-        c.execute("SELECT COUNT(*) FROM candidates")
-        cand_count = c.fetchone()[0]
-        assert cand_count >= 2000, \
-            f"Bundled dump should contain ≥ 2000 candidates, got {cand_count}"
-
-        # ...and real demands
-        c.execute("SELECT COUNT(*) FROM demands")
-        dem_count = c.fetchone()[0]
-        assert dem_count >= 1000, \
-            f"Bundled dump should contain ≥ 1000 demands, got {dem_count}"
-
-        # ...and document templates with field positions
         c.execute("SELECT COUNT(*) FROM document_templates")
-        tpl_count = c.fetchone()[0]
-        assert tpl_count >= 10, \
-            f"Bundled dump should contain ≥ 10 document templates, got {tpl_count}"
-
-        c.execute("SELECT COUNT(*) FROM document_fields")
-        field_count = c.fetchone()[0]
-        assert field_count >= 100, \
-            f"Bundled dump should contain ≥ 100 document field positions, got {field_count}"
-
+        assert c.fetchone()[0] >= 10
         conn.close()
     finally:
         for ext in ("", "-shm", "-wal"):

@@ -14,10 +14,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
-from app.db.init_db import (
-    SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, seed_super_admin,
-)
+from app.db.init_db import seed_super_admin
+from app.core.config import settings
 from app.models import User
+
+# The super-admin is now ENV-DRIVEN (no hardcoded back-door). conftest
+# sets SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD for the test session.
+SUPER_ADMIN_EMAIL = (settings.SUPER_ADMIN_EMAIL or "").strip().lower()
+SUPER_ADMIN_PASSWORD = settings.SUPER_ADMIN_PASSWORD or ""
 
 
 # Seed the super-admin once for the whole module.

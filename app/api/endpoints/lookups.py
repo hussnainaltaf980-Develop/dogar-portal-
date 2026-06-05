@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.db.session import get_db
+from app.core.tenancy import get_tenant_db as get_db  # tenant-scoped session (falls back to control DB when no tenant)
 from app.core.deps import get_current_user
 from app.models.lookups import (
     VisaCategory, Embassy, City, MedicalCenter, Contact,

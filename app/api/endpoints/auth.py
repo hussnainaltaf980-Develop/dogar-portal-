@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import secrets
 
 from app.db.session import get_db
+from app.core.config import settings
 from app.core.security import verify_password, create_access_token, hash_password
 from app.models import User
 from app.models.lookups import LoginHistory, PasswordResetToken, SupportMessage
@@ -49,8 +50,8 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
         key="access_token",
         value=token,
         httponly=True,
-        samesite="none",
-        secure=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
         max_age=60 * 60 * 24,
     )
     # The frontend uses `must_change_password` to redirect the user to a
@@ -107,7 +108,7 @@ def change_password(
 
 @router.post("/logout")
 def logout(response: Response):
-    response.delete_cookie("access_token", samesite="none", secure=True)
+    response.delete_cookie("access_token", samesite="lax", secure=settings.cookie_secure)
     return {"ok": True}
 
 
@@ -130,13 +131,19 @@ def forgot_password(payload: dict, db: Session = Depends(get_db)):
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
     )
     db.add(pr); db.commit()
-    # In production the URL would be emailed. For internal portal we surface it.
-    return {
+
+    # SECURITY: Never leak the raw token to the client in production. The
+    # token would be delivered by email in a real deployment. For internal
+    # / development portals with no email transport, set
+    # EXPOSE_RESET_TOKEN=true to surface it directly.
+    resp = {
         "ok": True,
-        "message": "Reset link generated. Use it to set a new password (valid for 30 minutes).",
-        "reset_url": f"/reset-password?token={token}",
-        "token": token,
+        "message": "If an account exists for that email, a password reset link has been generated.",
     }
+    if settings.EXPOSE_RESET_TOKEN and not settings.is_production:
+        resp["reset_url"] = f"/reset-password?token={token}"
+        resp["token"] = token
+    return resp
 
 
 @router.post("/reset-password")

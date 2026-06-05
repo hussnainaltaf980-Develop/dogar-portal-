@@ -21,6 +21,11 @@ os.environ["DEFAULT_ADMIN_EMAIL"] = "admin@test.local"
 os.environ["DEFAULT_ADMIN_PASSWORD"] = "TestAdminPass123!"
 os.environ["DEFAULT_ADMIN_NAME"] = "Test Admin"
 os.environ["ENV"] = "development"   # don't trigger production guard during tests
+# Enable the OPTIONAL env-driven super-admin so its test suite has an
+# account to exercise. Production deployments leave these unset.
+os.environ["SUPER_ADMIN_EMAIL"] = "superadmin@test.local"
+os.environ["SUPER_ADMIN_PASSWORD"] = "SuperAdminPass123!"
+os.environ["SUPER_ADMIN_NAME"] = "Test Super Admin"
 
 # Now safe to import the app
 from fastapi.testclient import TestClient  # noqa: E402
@@ -59,6 +64,24 @@ _bootstrap_db()
 def client() -> TestClient:
     """Shared TestClient — uses the isolated SQLite from above."""
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _clear_client_cookies(request):
+    """Ensure every test starts UNAUTHENTICATED.
+
+    The login endpoint now sets a non-Secure ``samesite=lax`` cookie in
+    development, which the shared session-scoped TestClient persists
+    between tests. Without this reset, a login in one test would leak an
+    auth cookie into later "requires-auth" tests. Clearing the cookie
+    jar before each test keeps tests isolated and deterministic.
+    """
+    cl = request.getfixturevalue("client") if "client" in request.fixturenames else None
+    if cl is not None:
+        cl.cookies.clear()
+    yield
+    if cl is not None:
+        cl.cookies.clear()
 
 
 @pytest.fixture(scope="session")

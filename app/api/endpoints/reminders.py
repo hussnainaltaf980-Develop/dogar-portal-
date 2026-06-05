@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
 
 from app.core.deps import get_current_user
-from app.db.session import get_db
+from app.core.tenancy import get_tenant_db as get_db  # tenant-scoped session (falls back to control DB when no tenant)
 from app.models import User
 from app.models.reminders import Reminder
 from app.services import alerts_engine

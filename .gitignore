@@ -1,129 +1,42 @@
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.npm
-.yarn-integrity
-*.tgz
-package-lock.json
-yarn.lock
-.pnpm-debug.log*
-
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-pip-log.txt
-pip-delete-this-directory.txt
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# Virtual Environments
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+.eggs/
+build/
+dist/
 .venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# IDEs and Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-*.swn
-.DS_Store
-Thumbs.db
-*~
-.project
-.classpath
-.settings/
-*.sublime-*
-
-# Logs
-logs/
-*.log
-log/
-
-# Environment variables
+# ---- Secrets / environment ----
 .env
-.env.local
-.env.*.local
-.env.development
-.env.test
-.env.production
+.env.*
+!.env.example
 
-# Build outputs
-/out
-/target
-/.next
-/.nuxt
-/dist
-/build
-/.cache
+# ---- Runtime data (databases, uploads, generated artifacts) ----
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/tenants/
+app/static/uploads/
 
-# Testing
-/coverage
-/.nyc_output
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
-*.bak
-*.backup
-*.old
-
-# Database
-*.sqlite
-*.sqlite3
-*.db
-
-# OS Files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Docker
-Dockerfile.local
-docker-compose.override.yml
-
-# Misc
+# ---- Logs / PM2 ----
+*.log
+.pm2/
+logs/
+pids/
 *.pid
-*.seed
-*.pid.lock
-.grunt
-.lock-wscript
 
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# ---- Bundled / vendor material (not part of clean source) ----
+.replit-artifact/
+migrations/*.sql.gz

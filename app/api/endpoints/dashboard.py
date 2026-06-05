@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from app.db.session import get_db
+from app.core.tenancy import get_tenant_db as get_db  # tenant-scoped session (falls back to control DB when no tenant)
 from app.core.deps import get_current_user
 from app.models import Client, Demand, Candidate, Agent, AgentCash, JobCategory, User
 
