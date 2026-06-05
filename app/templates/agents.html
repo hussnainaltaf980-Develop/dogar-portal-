@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Sub-Agents · {{ company_name }}{% endblock %}
+{% block page_title %}Sub-Agents{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-slate-700">Sub-Agents / Travel Agencies</h3>
+        <button onclick="openAgentModal()" class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Agent</button>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead><tr><th>#</th><th>Agent Name</th><th>Company</th><th>Phone / Mobile</th><th>Address</th><th>Balance (PKR)</th><th>Status</th><th class="text-right">Actions</th></tr></thead>
+            <tbody id="agentsBody"><tr><td colspan="8" class="text-center text-slate-400 py-8">Loading...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadAgents() {
+    const r = await axios.get('/api/agents/');
+    const body = document.getElementById('agentsBody');
+    if (!r.data.length) { body.innerHTML = '<tr><td colspan="8" class="text-center text-slate-400 py-8">No agents yet.</td></tr>'; return; }
+    body.innerHTML = r.data.map(a => `
+        <tr>
+            <td class="font-mono text-xs text-slate-500">#${a.id}</td>
+            <td class="font-semibold">${escapeHtml(a.name)}</td>
+            <td>${escapeHtml(a.company_name||'—')}</td>
+            <td class="text-xs">${escapeHtml(a.phone||'')}<br>${escapeHtml(a.mobile||'')}</td>
+            <td class="text-xs">${escapeHtml(a.address||'—')}</td>
+            <td class="font-semibold ${a.balance>0?'text-red-600':'text-emerald-600'}">${fmtMoney(a.balance)}</td>
+            <td>${statusBadge(a.status)}</td>
+            <td class="text-right">
+                <a href="/agents/${a.id}/cashbook" class="btn btn-outline btn-sm"><i class="fa-solid fa-book"></i> Ledger</a>
+                <button onclick="editAgent(${a.id})" class="btn btn-outline btn-sm"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteAgent(${a.id})" class="btn btn-outline btn-sm text-red-600"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+function agentForm(a={}) {
+    return `
+    <form id="agentForm" class="p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">${a.id?'Edit':'New'} Agent</h3>
+            <button type="button" onclick="closeModal()" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div><label class="form-label">Name *</label><input name="name" required class="form-input" value="${escapeHtml(a.name||'')}"></div>
+            <div><label class="form-label">Company</label><input name="company_name" class="form-input" value="${escapeHtml(a.company_name||'')}"></div>
+            <div><label class="form-label">Phone</label><input name="phone" class="form-input" value="${escapeHtml(a.phone||'')}"></div>
+            <div><label class="form-label">Mobile</label><input name="mobile" class="form-input" value="${escapeHtml(a.mobile||'')}"></div>
+            <div><label class="form-label">Email</label><input name="email" type="email" class="form-input" value="${escapeHtml(a.email||'')}"></div>
+            <div><label class="form-label">City</label><input name="city" class="form-input" value="${escapeHtml(a.city||'')}"></div>
+            <div class="col-span-2"><label class="form-label">Address</label><textarea name="address" rows="2" class="form-textarea">${escapeHtml(a.address||'')}</textarea></div>
+            <div><label class="form-label">Status</label><select name="status" class="form-select"><option value="active" ${a.status=='active'?'selected':''}>Active</option><option value="inactive" ${a.status=='inactive'?'selected':''}>Inactive</option></select></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-4 pt-4 border-t"><button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+    </form>`;
+}
+function openAgentModal(a={}) {
+    openModal(agentForm(a));
+    document.getElementById('agentForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = Object.fromEntries(new FormData(e.target).entries());
+        if (a.id) await axios.put(`/api/agents/${a.id}`, fd);
+        else await axios.post('/api/agents/', fd);
+        closeModal();
+        await loadAgents();
+        toast('Agent saved');
+    });
+}
+async function editAgent(id) {
+    const r = await axios.get(`/api/agents/${id}`);
+    openAgentModal(r.data);
+}
+async function deleteAgent(id) {
+    if (!confirm('Delete this agent? All ledger entries will be deleted.')) return;
+    await axios.delete(`/api/agents/${id}`);
+    await loadAgents();
+}
+loadAgents();
+</script>
+{% endblock %}

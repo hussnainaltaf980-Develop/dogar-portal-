@@ -1,0 +1,1458 @@
+{% extends "base.html" %}
+{% block title %}Demand Detail · {{ company_name }}{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+    <a href="/demands" class="text-sm text-slate-500 hover:text-blue-600 inline-flex items-center gap-1.5">
+        <i class="fa-solid fa-arrow-left"></i> Back to Demand Files
+    </a>
+</div>
+
+<div class="flex items-start justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-regular fa-folder text-blue-600"></i>
+            Demand File <span id="fileNum" class="text-blue-600">…</span>
+        </h1>
+        <p id="metaLine" class="text-sm text-slate-500 mt-0.5"></p>
+    </div>
+    <div class="flex items-center gap-2">
+        <span id="embassyBadge" class="hidden bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold px-3 py-1.5 rounded-md">
+            <i class="fa-solid fa-building-columns mr-1"></i> <span id="embassyBadgeText">—</span>
+        </span>
+        {% if user.role != 'agent' %}
+        <button onclick="openEditModal()" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold px-3.5 py-2 rounded-lg flex items-center gap-2">
+            <i class="fa-regular fa-pen-to-square"></i> Edit
+        </button>
+        {% endif %}
+        <button onclick="switchTab('documents')" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-3.5 py-2 rounded-lg flex items-center gap-2">
+            <i class="fa-solid fa-print"></i> Print Documents
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+    <div class="stat-tile">
+        <div class="stat-label">Trades</div>
+        <div class="stat-value" id="stTrades">0</div>
+        <div class="stat-sub"><i class="fa-solid fa-briefcase text-slate-400"></i> Job categories</div>
+    </div>
+    <div class="stat-tile">
+        <div class="stat-label">Total Slots</div>
+        <div class="stat-value text-blue-600" id="stSlots">0</div>
+        <div class="stat-sub"><i class="fa-solid fa-users text-blue-400"></i> Sponsor requirement</div>
+    </div>
+    <div class="stat-tile">
+        <div class="stat-label">Assigned</div>
+        <div class="stat-value text-emerald-600" id="stAssigned">0</div>
+        <div class="stat-sub"><i class="fa-solid fa-user-check text-emerald-400"></i> Candidates placed</div>
+    </div>
+    <div class="stat-tile">
+        <div class="stat-label">Available</div>
+        <div class="stat-value text-amber-600" id="stAvail">0</div>
+        <div class="stat-sub"><i class="fa-solid fa-hourglass-half text-amber-400"></i> Open positions</div>
+    </div>
+</div>
+
+<!-- Tab bar -->
+<div class="tab-bar mb-4">
+    <button class="tab-btn active" data-tab="details" onclick="switchTab('details')"><i class="fa-regular fa-circle-question"></i> Details</button>
+    <button class="tab-btn" data-tab="trades" onclick="switchTab('trades')"><i class="fa-solid fa-briefcase"></i> Trades <span class="count" id="cntTrades">0</span></button>
+    <button class="tab-btn" data-tab="documents" onclick="switchTab('documents')"><i class="fa-regular fa-file-lines"></i> Documents <span class="count" id="cntDocs">0</span></button>
+    <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')"><i class="fa-solid fa-receipt"></i> Payments <span class="count" id="cntPays">0</span></button>
+</div>
+
+<!-- DETAILS TAB -->
+<div id="tab-details" class="tab-pane">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="card">
+            <div class="card-header"><h3 class="font-semibold text-slate-800"><i class="fa-regular fa-circle text-blue-600 mr-2"></i>Basic Information</h3></div>
+            <div class="p-5 space-y-3 text-sm" id="basicInfo"></div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3 class="font-semibold text-slate-800"><i class="fa-solid fa-handshake text-blue-600 mr-2"></i>Sponsor Information</h3></div>
+            <div class="p-5 space-y-3 text-sm" id="sponsorInfo"></div>
+        </div>
+        <div class="card lg:col-span-2">
+            <div class="card-header"><h3 class="font-semibold text-slate-800"><i class="fa-regular fa-id-card text-blue-600 mr-2"></i>Visa Information</h3></div>
+            <div class="p-5 grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3 text-sm" id="visaInfo"></div>
+        </div>
+    </div>
+</div>
+
+<!-- TRADES TAB -->
+<div id="tab-trades" class="tab-pane hidden">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="font-semibold text-slate-800">Trades / Job Categories</h3>
+            <button onclick="openTradeModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i> Add Trade
+            </button>
+        </div>
+        <div class="p-5 space-y-4" id="tradesList"></div>
+    </div>
+</div>
+
+<!-- DOCUMENTS TAB (Permission Documents — HTML on letterhead background) -->
+<div id="tab-documents" class="tab-pane hidden">
+
+    <!-- ============================================================ -->
+    <!-- PERMISSION DOCUMENTS — 5 HTML docs on dogar_letterhead.jpg  -->
+    <!-- ============================================================ -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="font-semibold text-slate-800"><i class="fa-regular fa-file-lines text-blue-600 mr-2"></i>Permission Documents</h3>
+            <div class="flex items-center gap-2">
+                <button id="btnPrintFileReceipt"
+                        onclick="printInDemandFrame('/api/demands/{{ demand_id }}/file-receipt', this)"
+                        class="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md inline-flex items-center gap-1.5"
+                        title="Official Demand File Receipt with logo + QR + watermark">
+                    <i class="fa-solid fa-file-invoice"></i> File Receipt
+                </button>
+                <button id="btnPrintAllLetters"
+                        class="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md inline-flex items-center gap-1.5">
+                    <i class="fa-solid fa-print"></i> Print All (Packet)
+                </button>
+            </div>
+        </div>
+        <div class="p-5">
+            <div class="mb-3 px-3 py-2 bg-blue-50 border border-blue-100 rounded-md text-xs text-blue-800">
+                <i class="fa-solid fa-circle-info mr-1"></i>
+                Permission documents are rendered on the company letterhead with this demand&rsquo;s sponsor, visa, and trade data filled in automatically. Print each individually, or use <b>Print All</b> for the full packet.
+            </div>
+            <div id="letterheadGroup" class="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                <div class="text-center text-slate-400 py-6 text-sm"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Loading…</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PAYMENTS TAB -->
+<div id="tab-payments" class="tab-pane hidden">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div class="stat-tile">
+            <div class="stat-label">Total Invoiced</div>
+            <div class="stat-value text-rose-600" id="payDebit">PKR 0</div>
+            <div class="stat-sub"><i class="fa-solid fa-file-invoice text-rose-400"></i> Charges raised</div>
+        </div>
+        <div class="stat-tile">
+            <div class="stat-label">Total Received</div>
+            <div class="stat-value text-emerald-600" id="payCredit">PKR 0</div>
+            <div class="stat-sub"><i class="fa-solid fa-hand-holding-dollar text-emerald-400"></i> Payments in</div>
+        </div>
+        <div class="stat-tile">
+            <div class="stat-label">Outstanding Balance</div>
+            <div class="stat-value text-amber-600" id="payBalance">PKR 0</div>
+            <div class="stat-sub"><i class="fa-solid fa-scale-balanced text-amber-400"></i> Debit − Credit</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="font-semibold text-slate-800"><i class="fa-solid fa-receipt text-blue-600 mr-2"></i>Payment History</h3>
+            <button onclick="openPayModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i> Add Payment / Invoice
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead><tr>
+                    <th>Date</th><th>Receipt No.</th><th>Type</th><th>Method</th><th>Reference</th>
+                    <th class="text-right">Debit (PKR)</th><th class="text-right">Credit (PKR)</th>
+                    <th>Received By</th><th></th>
+                </tr></thead>
+                <tbody id="payTbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- EDIT DEMAND MODAL -->
+<div id="editModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-[760px] max-h-[92vh] overflow-y-auto">
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="font-bold text-slate-800">Edit Demand File</h3>
+            <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="editForm" class="p-5 space-y-4 text-sm">
+            <div class="grid grid-cols-2 gap-3">
+                <label><span class="text-slate-600">File Number</span>
+                    <input name="file_number" placeholder="DTC/786/&lt;seq&gt;" class="mt-1 w-full border rounded-md px-3 py-2">
+                    <span class="text-[10px] text-slate-400">Format: DTC/786/&lt;sequential&gt;. Leave to keep current.</span>
+                </label>
+                <label><span class="text-slate-600">Reference</span><input name="reference" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Receiving Date</span><input name="receiving_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Permission No.</span><input name="permission_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Permission Date</span><input name="permission_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Status</span>
+                    <select name="status" class="mt-1 w-full border rounded-md px-3 py-2">
+                        <option value="active">Active</option><option value="processing">Processing</option><option value="filled">Filled</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option>
+                    </select>
+                </label>
+                <label><span class="text-slate-600">Sponsor Name</span><input name="sponsor_name" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Sponsor Name (Arabic)</span><input name="sponsor_name_arabic" dir="rtl" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label class="col-span-2"><span class="text-slate-600">Sponsor Address</span><textarea name="sponsor_address" rows="2" class="mt-1 w-full border rounded-md px-3 py-2"></textarea></label>
+                <label><span class="text-slate-600">Visa Number</span><input name="visa_number" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Bataka Number</span><input name="bataka_number" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Country</span><input name="country" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Embassy</span><input name="embassy" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md">Cancel</button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-md">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ADD TRADE MODAL -->
+<div id="tradeModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-[480px]">
+        <div class="p-5 border-b flex items-center justify-between">
+            <h3 class="font-bold text-slate-800">Add Trade</h3>
+            <button onclick="closeTradeModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="tradeForm" class="p-5 space-y-3 text-sm">
+            <label class="block"><span class="text-slate-600">Trade / Profession *</span>
+                <select name="trade" required id="tradeSelect" class="mt-1 w-full border rounded-md px-3 py-2">
+                    <option value="">-- Select Trade --</option>
+                </select>
+            </label>
+            <div class="grid grid-cols-2 gap-3">
+                <label><span class="text-slate-600">Quantity *</span><input name="quantity" type="number" min="1" value="1" required class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Contract (years)</span><input name="contract_years" type="number" min="1" value="2" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Salary</span><input name="salary" type="number" step="0.01" value="0" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                <label><span class="text-slate-600">Currency</span>
+                    <select name="salary_currency" class="mt-1 w-full border rounded-md px-3 py-2">
+                        <option value="SAR">SAR</option><option value="AED">AED</option><option value="USD">USD</option><option value="PKR">PKR</option>
+                    </select>
+                </label>
+            </div>
+            <label><span class="text-slate-600">Notes</span><textarea name="notes" rows="2" class="mt-1 w-full border rounded-md px-3 py-2"></textarea></label>
+            <div class="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onclick="closeTradeModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md">Cancel</button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-md">Add Trade</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ASSIGN CANDIDATE WIZARD (5-step inline modal — full data entry, NOT picker) -->
+<div id="assignWizard" class="fixed inset-0 bg-black/50 hidden items-start justify-center z-50 overflow-y-auto py-6 px-3">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl my-4 flex flex-col max-h-[92vh]">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 text-base">
+                Assign Candidate to <span id="aw_tradeName" class="text-blue-600">—</span>
+            </h3>
+            <button onclick="closeAssignWizard()" class="text-slate-400 hover:text-slate-700 text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- Stepper -->
+        <div class="px-6 py-3 border-b bg-slate-50">
+            <div class="flex items-center justify-between gap-2 text-xs">
+                <div class="aw-step flex-1 flex items-center gap-2" data-step="1">
+                    <span class="aw-num w-7 h-7 rounded-full flex items-center justify-center font-semibold bg-blue-600 text-white">1</span>
+                    <span class="aw-label font-semibold text-slate-700">Personal Info</span>
+                </div>
+                <div class="aw-step flex-1 flex items-center gap-2" data-step="2">
+                    <span class="aw-num w-7 h-7 rounded-full flex items-center justify-center font-semibold bg-slate-200 text-slate-500">2</span>
+                    <span class="aw-label text-slate-500">Identification</span>
+                </div>
+                <div class="aw-step flex-1 flex items-center gap-2" data-step="3">
+                    <span class="aw-num w-7 h-7 rounded-full flex items-center justify-center font-semibold bg-slate-200 text-slate-500">3</span>
+                    <span class="aw-label text-slate-500">Employment</span>
+                </div>
+                <div class="aw-step flex-1 flex items-center gap-2" data-step="4">
+                    <span class="aw-num w-7 h-7 rounded-full flex items-center justify-center font-semibold bg-slate-200 text-slate-500">4</span>
+                    <span class="aw-label text-slate-500">Next of Kin</span>
+                </div>
+                <div class="aw-step flex-1 flex items-center gap-2" data-step="5">
+                    <span class="aw-num w-7 h-7 rounded-full flex items-center justify-center font-semibold bg-slate-200 text-slate-500">5</span>
+                    <span class="aw-label text-slate-500">Charge Summary</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <form id="aw_form" class="flex-1 overflow-y-auto px-6 py-5">
+            <!-- STEP 1: Personal Info -->
+            <div class="aw-pane" data-step="1">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <label><span class="text-slate-600">Name <span class="text-rose-500">*</span></span><input name="full_name" required placeholder="Full name" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Name (Arabic)</span><input name="name_arabic" dir="rtl" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Mother Name</span><input name="mother_name" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Father Name <span class="text-rose-500">*</span></span><input name="father_name" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Father Name (Arabic)</span><input name="father_name_arabic" dir="rtl" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Gender <span class="text-rose-500">*</span></span>
+                        <select name="gender" class="mt-1 w-full border rounded-md px-3 py-2">
+                            <option value="">—</option><option>Male</option><option>Female</option>
+                        </select>
+                    </label>
+                    <label><span class="text-slate-600">Marital Status <span class="text-rose-500">*</span></span>
+                        <select name="marital_status" class="mt-1 w-full border rounded-md px-3 py-2">
+                            <option value="">—</option><option>Single</option><option>Married</option><option>Divorced</option><option>Widowed</option>
+                        </select>
+                    </label>
+                    <label><span class="text-slate-600">Religion</span><input name="religion" value="Islam" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Date Of Birth <span class="text-rose-500">*</span></span><input type="date" name="date_of_birth" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Place Of Birth</span><input name="place_of_birth" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Place Of Birth (Arabic)</span><input name="place_of_birth_arabic" dir="rtl" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Nationality</span><input name="nationality" value="PAKISTANI" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label class="md:col-span-3"><span class="text-slate-600">Address</span><input name="address" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Phone No</span><input name="phone" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Tehsil</span><input name="tehsil" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">District</span><input name="district" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Province</span>
+                        <select name="province" class="mt-1 w-full border rounded-md px-3 py-2">
+                            <option value="">—</option><option>Punjab</option><option>Sindh</option><option>KPK</option><option>Balochistan</option><option>Islamabad</option><option>AJK</option><option>Gilgit-Baltistan</option>
+                        </select>
+                    </label>
+                    <label class="md:col-span-3"><span class="text-slate-600">Photo Upload</span><input type="file" id="aw_photo" accept="image/*" class="mt-1 w-full border rounded-md px-3 py-2 bg-white"></label>
+                </div>
+            </div>
+
+            <!-- STEP 2: Identification (with OCR) -->
+            <div class="aw-pane hidden" data-step="2">
+                <!-- OCR scanner -->
+                <div class="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-semibold text-slate-800"><i class="fa-solid fa-camera-retro text-blue-600 mr-1"></i> Real-time Passport OCR</div>
+                            <div class="text-xs text-slate-600 mt-0.5">Scan a passport image — passport no, dates, nationality &amp; place will auto-fill below.</div>
+                        </div>
+                        <label class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-md cursor-pointer">
+                            <i class="fa-solid fa-upload mr-1"></i> Scan Passport
+                            <input type="file" id="aw_ocrFile" accept="image/*" class="hidden" onchange="awScanPassport(this)">
+                        </label>
+                    </div>
+                    <div id="aw_ocrStatus" class="hidden mt-2 text-xs rounded-md p-2"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <label><span class="text-slate-600">Passport No</span><input name="passport_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Passport Issue Date</span><input type="date" name="passport_issue_date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Passport Expiry Date</span><input type="date" name="passport_expiry_date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Issuing Authority</span><input name="issuing_authority" value="PAKISTAN" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Issuing Authority (Arabic)</span><input name="issuing_authority_arabic" dir="rtl" placeholder="پاکستان" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Passport Issue Place</span><input name="passport_issue_place" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">CNIC No</span><input name="cnic" placeholder="34601-1234567-1" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Nadra Token No</span><input name="nadra_token_no" placeholder="n/a" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                </div>
+            </div>
+
+            <!-- STEP 3: Employment -->
+            <div class="aw-pane hidden" data-step="3">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <label class="md:col-span-1">
+                        <span class="text-slate-600">Permission No</span>
+                        <div class="mt-1 flex">
+                            <span id="aw_permPrefix" class="px-3 py-2 text-xs font-semibold bg-slate-100 border border-r-0 rounded-l-md text-slate-600 whitespace-nowrap">DTC/LHR/—/</span>
+                            <input name="permission_no_suffix" placeholder="Suffix" class="flex-1 border rounded-r-md px-3 py-2">
+                        </div>
+                    </label>
+                    <label><span class="text-slate-600">Permission Date</span><input type="date" name="permission_date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Qualification</span><input name="qualification" value="N/a" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                </div>
+            </div>
+
+            <!-- STEP 4: Next of Kin -->
+            <div class="aw-pane hidden" data-step="4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <label><span class="text-slate-600">Next Of Kin Name</span><input name="next_of_kin_name" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Next Of Kin NIC No</span><input name="next_of_kin_nic" placeholder="12345-1234567-1" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Next Of Kin Relation</span><input name="next_of_kin_relation" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                </div>
+            </div>
+
+            <!-- STEP 5: Charge Summary -->
+            <div class="aw-pane hidden" data-step="5">
+                <div class="text-sm font-semibold text-slate-700 mb-3"><i class="fa-solid fa-receipt text-emerald-600 mr-1"></i> Charge Summary (this assignment)</div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <label><span class="text-slate-600">Salary</span>
+                        <div class="mt-1 flex">
+                            <input name="salary" type="number" step="0.01" class="flex-1 border rounded-l-md px-3 py-2">
+                            <span class="px-3 py-2 text-xs font-semibold bg-slate-100 border border-l-0 rounded-r-md text-slate-600" id="aw_salaryCurr">SAR</span>
+                        </div>
+                    </label>
+                    <label><span class="text-slate-600">Price (Service Charge)</span><input name="price" type="number" step="0.01" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Ticket Included</span>
+                        <select name="ticket_included" class="mt-1 w-full border rounded-md px-3 py-2">
+                            <option>No</option><option>Yes</option>
+                        </select>
+                    </label>
+                    <label><span class="text-slate-600">Accommodation Allowance</span><input name="accommodation_allowance" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label><span class="text-slate-600">Food Allowance</span><input name="food_allowance" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+                    <label class="md:col-span-3"><span class="text-slate-600">Slot Notes</span><textarea name="slot_notes" rows="2" class="mt-1 w-full border rounded-md px-3 py-2"></textarea></label>
+                </div>
+                <div class="mt-4 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <i class="fa-solid fa-circle-info mr-1 text-blue-500"></i> On <strong>Save</strong>, a new Candidate will be created and assigned to <span id="aw_summaryTradeName" class="font-semibold text-slate-700">—</span> in this Demand File.
+                </div>
+            </div>
+        </form>
+
+        <!-- Footer -->
+        <div class="px-6 py-3 border-t bg-slate-50 flex items-center justify-between">
+            <button type="button" id="aw_backBtn" onclick="awBack()" class="px-4 py-2 text-sm text-slate-600 hover:bg-white border border-slate-300 rounded-md hidden">
+                <i class="fa-solid fa-arrow-left mr-1"></i> Back
+            </button>
+            <button type="button" onclick="closeAssignWizard()" class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 mr-auto ml-2">Cancel</button>
+            <button type="button" id="aw_nextBtn" onclick="awNext()" class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md">
+                Next <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+            <button type="button" id="aw_saveBtn" onclick="awSave()" class="px-5 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md hidden">
+                <i class="fa-solid fa-check mr-1"></i> Save &amp; Assign
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ EDIT TRADE MODAL ============ -->
+<div id="editTradeModal" class="fixed inset-0 bg-black/50 hidden items-start justify-center z-50 overflow-y-auto py-6 px-3">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl my-8">
+        <div class="flex items-center justify-between px-5 py-3 border-b">
+            <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-pen-to-square mr-2 text-blue-600"></i>Edit Trade / Visa Category</h3>
+            <button onclick="closeEditTrade()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <form id="editTradeForm" onsubmit="submitEditTrade(event)" class="p-5 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Visa Category / Trade <span class="text-rose-500">*</span></label>
+                <select id="editTradeSelect" name="trade" required class="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"></select>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Quantity</label>
+                    <input type="number" name="quantity" min="1" required class="w-full border rounded px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Salary</label>
+                    <input type="number" step="0.01" name="salary" required class="w-full border rounded px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Currency</label>
+                    <select name="salary_currency" class="w-full border rounded px-3 py-2 text-sm">
+                        <option value="SAR">SAR</option><option value="AED">AED</option><option value="QAR">QAR</option>
+                        <option value="KWD">KWD</option><option value="OMR">OMR</option><option value="BHD">BHD</option>
+                        <option value="USD">USD</option><option value="PKR">PKR</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Contract (yrs)</label>
+                    <input type="number" name="contract_years" min="1" max="10" value="2" class="w-full border rounded px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Notes</label>
+                <textarea name="notes" rows="2" class="w-full border rounded px-3 py-2 text-sm"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    Custom Fields <span class="text-slate-400 font-normal">(JSON for data-overlay extra fields)</span>
+                </label>
+                <textarea name="custom_fields" rows="3" placeholder='{"shift_hours": "8", "food": "Provided", "accommodation": "Free"}' class="w-full border rounded px-3 py-2 text-xs font-mono"></textarea>
+                <p class="text-[11px] text-slate-500 mt-1"><i class="fa-solid fa-circle-info mr-1"></i>These key-value pairs are merged into PDF templates by the overlay engine.</p>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t">
+                <button type="button" onclick="closeEditTrade()" class="px-4 py-2 text-sm border border-slate-300 rounded text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="submit" class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i> Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============ PAYMENT / INVOICE MODAL ============ -->
+<div id="payModal" class="fixed inset-0 bg-black/50 hidden items-start justify-center z-50 overflow-y-auto py-6 px-3">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl my-8">
+        <div class="flex items-center justify-between px-5 py-3 border-b bg-gradient-to-r from-emerald-50 to-white">
+            <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-money-bill-wave mr-2 text-emerald-600"></i>Record Payment / Invoice</h3>
+            <button onclick="closePayModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <form id="payForm" onsubmit="submitPayment(event)" class="p-5 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-2">Entry Type <span class="text-rose-500">*</span></label>
+                <div class="flex gap-3">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="entry_type" value="PAYMENT" class="peer sr-only" checked>
+                        <div class="border-2 border-slate-200 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 rounded-lg p-3 text-center transition">
+                            <i class="fa-solid fa-circle-down text-emerald-600 text-xl block mb-1"></i>
+                            <div class="font-semibold text-sm text-slate-700">PAYMENT</div>
+                            <div class="text-[11px] text-slate-500">Money received from client</div>
+                        </div>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="entry_type" value="INVOICE" class="peer sr-only">
+                        <div class="border-2 border-slate-200 peer-checked:border-rose-500 peer-checked:bg-rose-50 rounded-lg p-3 text-center transition">
+                            <i class="fa-solid fa-file-invoice text-rose-600 text-xl block mb-1"></i>
+                            <div class="font-semibold text-sm text-slate-700">INVOICE</div>
+                            <div class="text-[11px] text-slate-500">Charge raised to client</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Amount (PKR) <span class="text-rose-500">*</span></label>
+                    <input type="number" step="0.01" name="amount" required class="w-full border rounded px-3 py-2 text-sm font-mono">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Date <span class="text-rose-500">*</span></label>
+                    <input type="date" name="entry_date" required class="w-full border rounded px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Payment Method</label>
+                    <select name="payment_method" class="w-full border rounded px-3 py-2 text-sm">
+                        <option value="Cash">Cash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Online">Online</option>
+                        <option value="Card">Card</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Reference / Cheque #</label>
+                    <input type="text" name="reference" placeholder="e.g. TRX-12345" class="w-full border rounded px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Received By</label>
+                <input type="text" name="received_by" placeholder="Cashier / Staff name" class="w-full border rounded px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Description / Notes</label>
+                <textarea name="description" rows="2" placeholder="e.g. Advance payment for visa processing" class="w-full border rounded px-3 py-2 text-sm"></textarea>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t">
+                <button type="button" onclick="closePayModal()" class="px-4 py-2 text-sm border border-slate-300 rounded text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="submit" class="px-5 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded">
+                    <i class="fa-solid fa-check mr-1"></i> Save Entry
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DEMAND_ID = {{ demand_id }};
+const USER_ROLE = '{{ user.role if user else "agent" }}';
+let DEMAND = {};
+
+function row(label, value) {
+    return `<div class="flex justify-between gap-3"><span class="text-slate-500">${label}</span><span class="text-slate-800 font-medium text-right">${value || '<span class="text-slate-300">—</span>'}</span></div>`;
+}
+function gridCell(label, value) {
+    return `<div><div class="text-slate-500 text-xs mb-0.5">${label}</div><div class="text-slate-800 font-medium">${value || '<span class="text-slate-300">—</span>'}</div></div>`;
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + tab));
+    if (tab === 'trades') loadTrades();
+    if (tab === 'documents') loadDocuments();
+    if (tab === 'payments') loadPayments();
+}
+
+async function loadDemand() {
+    const { data } = await axios.get(`/api/demands/${DEMAND_ID}`);
+    DEMAND = data;
+    document.getElementById('fileNum').textContent = data.file_number_display || data.file_number || '';
+    document.getElementById('metaLine').innerHTML =
+        `<i class="fa-regular fa-building mr-1"></i>${data.client_name || '—'} <span class="mx-2">·</span> ` +
+        `<i class="fa-solid fa-flag mr-1"></i>${data.country || '—'} <span class="mx-2">·</span> ` +
+        `<span class="px-2 py-0.5 rounded-full text-xs ${statusClass(data.status)}">${data.status || 'active'}</span>`;
+
+    // Embassy badge in the header
+    const eb = document.getElementById('embassyBadge');
+    const ebt = document.getElementById('embassyBadgeText');
+    if (data.embassy && data.embassy.trim()) {
+        ebt.textContent = data.embassy;
+        eb.classList.remove('hidden');
+    } else {
+        eb.classList.add('hidden');
+    }
+
+    document.getElementById('basicInfo').innerHTML = [
+        row('File Number', `<span class="text-blue-600 font-semibold">${data.file_number_display || data.file_number || '—'}</span>`),
+        row('Client', data.client_name),
+        row('Receiving Date', data.receiving_date),
+        row('Permission No.', data.permission_no),
+        row('Permission Date', data.permission_date),
+        row('Reference', data.reference),
+        row('Created', data.created_at ? data.created_at.split('T')[0] : ''),
+    ].join('');
+
+    document.getElementById('sponsorInfo').innerHTML = [
+        row('Sponsor Name', data.sponsor_name),
+        row('Sponsor (Arabic)', `<span dir="rtl">${data.sponsor_name_arabic || ''}</span>`),
+        row('Address', data.sponsor_address),
+        row('Phone', data.sponsor_phone),
+        row('Alt. Phone', data.sponsor_alt_phone),
+    ].join('');
+
+    document.getElementById('visaInfo').innerHTML = [
+        gridCell('Visa Number', data.visa_number),
+        gridCell('Bataka Number', data.bataka_number),
+        gridCell('Visa Issue Date', data.visa_issue_date),
+        gridCell('Hijri Date', data.visa_issue_date_hijri),
+        gridCell('Country', data.country),
+        gridCell('Embassy', data.embassy),
+        gridCell('Document Count', data.document_count),
+    ].join('');
+}
+
+function statusClass(s) {
+    s = (s || '').toLowerCase();
+    if (s === 'filled') return 'bg-emerald-50 text-emerald-700';
+    if (s === 'processing') return 'bg-amber-50 text-amber-700';
+    if (s === 'expired' || s === 'cancelled') return 'bg-rose-50 text-rose-700';
+    return 'bg-blue-50 text-blue-700';
+}
+
+async function loadSummary() {
+    const { data } = await axios.get(`/api/demands/${DEMAND_ID}/summary`);
+    document.getElementById('stTrades').textContent = data.trades || 0;
+    document.getElementById('stSlots').textContent = data.total_slots || 0;
+    document.getElementById('stAssigned').textContent = data.assigned || 0;
+    document.getElementById('stAvail').textContent = data.available || 0;
+    document.getElementById('cntTrades').textContent = data.trades || 0;
+}
+
+async function loadTrades() {
+    const { data } = await axios.get(`/api/demands/${DEMAND_ID}/trades`);
+    const list = document.getElementById('tradesList');
+    if (!data || data.length === 0) {
+        list.innerHTML = `<div class="text-center text-slate-400 py-10"><i class="fa-solid fa-briefcase text-3xl block mb-2"></i>No trades added. Click <b>Add Trade</b> to create one.</div>`;
+        return;
+    }
+    list.innerHTML = data.map(t => {
+        const fillPct = t.quantity > 0 ? Math.min(100, Math.round((t.assigned/t.quantity)*100)) : 0;
+        return `
+        <div class="border border-slate-200 rounded-lg overflow-hidden bg-white">
+            <!-- Trade header -->
+            <div class="bg-slate-50 px-4 py-3 flex items-center justify-between border-b border-slate-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <i class="fa-solid fa-briefcase"></i>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-slate-800">${t.trade}</div>
+                        <div class="text-xs text-slate-500 mt-0.5">
+                            <i class="fa-solid fa-coins text-amber-500 mr-0.5"></i> ${t.salary} ${t.salary_currency} ·
+                            <i class="fa-regular fa-calendar text-slate-400 ml-1"></i> ${t.contract_years||2} yrs ·
+                            <span class="font-semibold text-slate-700">${t.assigned}/${t.quantity}</span> filled
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="hidden md:flex items-center gap-2 mr-2">
+                        <div class="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div class="h-full bg-emerald-500" style="width:${fillPct}%"></div>
+                        </div>
+                        <span class="text-[11px] text-slate-500 font-semibold">${fillPct}%</span>
+                    </div>
+                    <div class="flex gap-1.5">
+                        ${t.candidates.length < t.quantity
+                            ? `<button onclick="openAssignWizard(${t.id}, '${(t.trade||'').replace(/'/g,"\\'")}', ${t.salary||0})"
+                                class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5" title="Assign a candidate to this trade">
+                                <i class="fa-solid fa-user-plus"></i> Assign
+                              </button>`
+                            : ''}
+                    </div>
+                    ${USER_ROLE !== 'agent' ? `
+                    <button onclick="editTrade(${t.id})"
+                            class="bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 text-xs font-semibold px-2.5 py-1.5 rounded-md" title="Edit trade">
+                        <i class="fa-regular fa-pen-to-square"></i> Edit
+                    </button>
+                    <button onclick="deleteTrade(${t.id})"
+                            class="bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold px-2.5 py-1.5 rounded-md" title="Delete trade">
+                        <i class="fa-regular fa-trash-can"></i> Remove
+                    </button>
+                    ` : ''}
+                </div>
+            </div>
+            <!-- Assigned candidate cards -->
+            <div class="p-4">
+                ${t.candidates.length === 0
+                    ? `<div class="text-center text-slate-400 py-6 border-2 border-dashed border-slate-200 rounded-lg" id="empty_trade_${t.id}">
+                          <i class="fa-regular fa-id-badge text-2xl block mb-1 opacity-40"></i>
+                          <div class="text-xs font-medium">No candidates assigned yet</div>
+                          <div class="mt-3">
+                            <button onclick="openAssignWizard(${t.id}, '${(t.trade||'').replace(/'/g,"\\'")}', ${t.salary||0})"
+                              class="inline-flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-md">
+                              <i class="fa-solid fa-user-plus"></i> Assign Candidate
+                            </button>
+                          </div>
+                       </div>`
+                    : '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">' +
+                      t.candidates.map(c => renderCandidateCard(c)).join('') +
+                      '</div>'}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderCandidateCard(c) {
+    const photo = c.photo
+        ? `<img src="/static/uploads/photos/${c.photo}" onerror="this.outerHTML='<div class=&quot;w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-semibold flex items-center justify-center text-sm&quot;>${(c.full_name||'?')[0].toUpperCase()}</div>'" class="w-12 h-12 rounded-full object-cover border border-slate-200">`
+        : `<div class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-semibold flex items-center justify-center text-sm">${(c.full_name||'?')[0].toUpperCase()}</div>`;
+    const arabic = c.name_arabic ? `<div class="text-[11px] text-slate-400" dir="rtl">${c.name_arabic}</div>` : '';
+    return `
+        <div class="border border-slate-200 rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition bg-white">
+            <div class="flex items-start gap-3">
+                ${photo}
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-slate-800 text-sm truncate">${c.full_name||'—'}</div>
+                    <div class="text-[11px] text-slate-500 truncate mt-0.5"><span class="text-slate-400">S/O</span> ${c.father_name||'—'}</div>
+                    ${arabic}
+                    <div class="mt-1.5">
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ${c.status_classes||'bg-slate-100 text-slate-600'}">${c.status_label||c.status||'New'}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-2.5 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-1 text-[11px] text-slate-500">
+                <div><i class="fa-regular fa-id-card mr-1 text-slate-400"></i>${c.passport_no||'—'}</div>
+                <div><i class="fa-solid fa-phone mr-1 text-slate-400"></i>${c.phone||'—'}</div>
+            </div>
+            <div class="mt-2.5 flex items-center gap-1.5">
+                <button onclick="openCandidateFlyout(${c.id}, 'view')"
+                    class="flex-1 text-center text-[11.5px] bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 font-semibold py-1.5 rounded-md border border-slate-200">
+                    <i class="fa-regular fa-eye mr-1"></i> Details
+                </button>
+                <button onclick="openCandidateFlyout(${c.id}, 'edit')"
+                    class="flex-1 text-center text-[11.5px] bg-slate-50 hover:bg-amber-50 hover:text-amber-700 text-slate-700 font-semibold py-1.5 rounded-md border border-slate-200">
+                    <i class="fa-regular fa-pen-to-square mr-1"></i> Edit
+                </button>
+                <a href="/candidates?focus=${c.id}" target="_blank" rel="noopener"
+                    class="text-indigo-600 hover:bg-indigo-50 px-2 py-1.5 rounded-md border border-slate-200" title="Open in Candidates page (new tab)">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+                ${USER_ROLE !== 'agent' ? `<button onclick="removeAssign(${c.assignment_id})" class="text-rose-500 hover:bg-rose-50 px-2 py-1.5 rounded-md border border-slate-200" title="Unassign">
+                    <i class="fa-regular fa-circle-xmark"></i>
+                </button>` : ''}
+            </div>
+        </div>`;
+}
+
+async function loadDocuments() {
+    // Load the 5 HTML-on-letterhead permission documents (Demand Letter,
+    // 3 Undertakings, Permission Application) — single source of truth.
+    await loadLetterheadDocuments();
+}
+
+/**
+ * Letterhead documents — the 5 HTML-on-letterhead documents rendered
+ * server-side from this demand's data (Demand Letter, two Undertakings,
+ * Roman-numeral Undertaking, and the Permission Application).
+ *
+ * Source of truth: GET /api/protector-letters/demand/:id/index
+ */
+async function loadLetterheadDocuments() {
+    const grp = document.getElementById('letterheadGroup');
+    try {
+        const { data } = await axios.get(`/api/protector-letters/demand/${DEMAND_ID}/index`);
+        const items = data.documents || [];
+        if (!items.length) {
+            grp.innerHTML = '<div class="text-center text-slate-400 py-6 text-sm">No letterhead documents available.</div>';
+            return;
+        }
+        grp.innerHTML = items.map((d, i) => `
+            <div class="flex items-center justify-between px-4 py-3 hover:bg-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-md bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                        ${i + 1}
+                    </div>
+                    <div>
+                        <div class="font-semibold text-slate-800 text-sm">${escapeHTML(d.name)}</div>
+                        <div class="text-[11px] text-slate-500 mt-0.5">${escapeHTML(d.description)}</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="openLetterheadPopup('${d.url}', '${escapeHTML(d.name)}')"
+                            class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md flex items-center gap-1.5">
+                        <i class="fa-solid fa-print"></i> Print
+                    </button>
+                </div>
+            </div>`).join('');
+
+        // Update the Documents tab counter (5 letterhead docs).
+        const cntDocs = document.getElementById('cntDocs');
+        if (cntDocs) cntDocs.textContent = items.length;
+
+        const btnAll = document.getElementById('btnPrintAllLetters');
+        if (btnAll) {
+            btnAll.onclick = () => openLetterheadPopup(data.packet_url, 'Demand Packet');
+        }
+    } catch (e) {
+        console.error('Letterhead docs load error:', e);
+        grp.innerHTML = '<div class="text-center text-rose-500 py-6 text-sm">Could not load permission documents.</div>';
+    }
+}
+
+/** v7: Print ANY server-rendered HTML document (file receipt, payment
+ *  receipt, permission letter, packet) via a hidden iframe — no new tab,
+ *  no popup. The renderer URL is loaded with `auto=0` so we control the
+ *  print() call from the parent for reliable timing across browsers.
+ *
+ *  Lazily creates `#demandPrintFrame` the first time it's called so
+ *  pages without a print action don't carry an unused iframe. */
+function printInDemandFrame(url, btn) {
+    let iframe = document.getElementById('demandPrintFrame');
+    if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'demandPrintFrame';
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.setAttribute('tabindex', '-1');
+        Object.assign(iframe.style, {
+            position: 'fixed', right: '0', bottom: '0',
+            width: '0', height: '0', border: '0', visibility: 'hidden',
+        });
+        document.body.appendChild(iframe);
+    }
+    // Force auto=0 / auto_print=0 so the iframe doesn't double-fire print()
+    const u = new URL(url, window.location.origin);
+    if (!u.searchParams.has('auto'))       u.searchParams.set('auto',       '0');
+    if (!u.searchParams.has('auto_print')) u.searchParams.set('auto_print', '0');
+    u.searchParams.set('_t', String(Date.now()));
+
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing…'; }
+
+    iframe.onload = null;
+    iframe.onload = function () {
+        setTimeout(function () {
+            try {
+                const w = iframe.contentWindow;
+                w.focus();
+                w.print();
+            } catch (e) {
+                console.error('demand iframe print failed:', e);
+                // Last-resort fallback: open with auto=1 so the page self-prints
+                const fb = new URL(url, window.location.origin);
+                fb.searchParams.set('auto', '1');
+                fb.searchParams.set('auto_print', '1');
+                window.open(fb.toString(), '_blank');
+            }
+            if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+        }, 400);
+    };
+    iframe.src = u.toString();
+}
+
+/** Backwards-compatible alias: the Permission Documents grid still calls
+ *  this name for individual letter buttons + the Packet button. */
+function openLetterheadPopup(url, title) {
+    printInDemandFrame(url);
+}
+
+/** Tiny HTML-escape helper for safe interpolation into innerHTML strings. */
+function escapeHTML(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// ----- Edit -----
+function openEditModal() {
+    const f = document.getElementById('editForm');
+    Object.keys(DEMAND).forEach(k => { if (f.elements[k] !== undefined) f.elements[k].value = DEMAND[k] || ''; });
+    document.getElementById('editModal').classList.remove('hidden');
+    document.getElementById('editModal').classList.add('flex');
+}
+function closeEditModal() { document.getElementById('editModal').classList.add('hidden'); document.getElementById('editModal').classList.remove('flex'); }
+document.getElementById('editForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {};
+    fd.forEach((v,k)=>{ if (v !== '') payload[k] = v; });
+    await axios.put(`/api/demands/${DEMAND_ID}`, payload);
+    closeEditModal(); loadDemand();
+});
+
+// ----- Trade -----
+async function loadTradeCategories() {
+    const { data } = await axios.get('/api/lookups/visa-categories?limit=500');
+    const sel = document.getElementById('tradeSelect');
+    sel.innerHTML = '<option value="">-- Select Trade --</option>' +
+        (data.items || []).map(v => `<option value="${v.name}">${v.name}</option>`).join('');
+}
+function openTradeModal() { document.getElementById('tradeForm').reset(); document.getElementById('tradeModal').classList.remove('hidden'); document.getElementById('tradeModal').classList.add('flex'); }
+function closeTradeModal() { document.getElementById('tradeModal').classList.add('hidden'); document.getElementById('tradeModal').classList.remove('flex'); }
+document.getElementById('tradeForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target); const payload = Object.fromEntries(fd.entries());
+    payload.quantity = parseInt(payload.quantity || 1);
+    payload.contract_years = parseInt(payload.contract_years || 2);
+    payload.salary = parseFloat(payload.salary || 0);
+    await axios.post(`/api/demands/${DEMAND_ID}/trades`, payload);
+    closeTradeModal(); loadTrades(); loadSummary();
+});
+async function deleteTrade(id) {
+    if (!confirm('Delete this trade and all assignments?')) return;
+    await axios.delete(`/api/demands/trades/${id}`);
+    loadTrades(); loadSummary();
+}
+
+// ----- Edit Trade (full inline modal) -----
+let _EDIT_TRADE_ID = null;
+
+async function editTrade(tradeId) {
+    _EDIT_TRADE_ID = tradeId;
+    // Fetch fresh trade list and find this trade
+    const { data: trades } = await axios.get(`/api/demands/${DEMAND_ID}/trades`);
+    const t = (trades || []).find(x => x.id === tradeId);
+    if (!t) { alert('Trade not found'); return; }
+
+    // Populate Visa Category dropdown (reuse cached list)
+    await loadTradeCategories();
+    const sel = document.getElementById('editTradeSelect');
+    sel.innerHTML = document.getElementById('tradeSelect').innerHTML;
+    // Pre-select current trade
+    if (![...sel.options].some(o => o.value === t.trade)) {
+        const opt = document.createElement('option'); opt.value = t.trade; opt.textContent = t.trade; sel.insertBefore(opt, sel.firstChild.nextSibling);
+    }
+    sel.value = t.trade;
+
+    const f = document.getElementById('editTradeForm');
+    f.elements['quantity'].value = t.quantity;
+    f.elements['salary'].value = t.salary;
+    f.elements['salary_currency'].value = t.salary_currency || 'SAR';
+    f.elements['contract_years'].value = t.contract_years || 2;
+    f.elements['notes'].value = t.notes || '';
+    f.elements['custom_fields'].value = t.custom_fields ? (typeof t.custom_fields === 'string' ? t.custom_fields : JSON.stringify(t.custom_fields, null, 2)) : '';
+
+    const m = document.getElementById('editTradeModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeEditTrade() {
+    const m = document.getElementById('editTradeModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+}
+
+// ----- Payments tab -----
+let _PAY_RECEIVED_BY_DEFAULT = '';
+
+async function loadPayments() {
+    try {
+        const { data } = await axios.get(`/api/demands/${DEMAND_ID}/payments`);
+        const fmt = n => 'PKR ' + (parseFloat(n||0)).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById('payDebit').textContent   = fmt(data.total_debit);
+        document.getElementById('payCredit').textContent  = fmt(data.total_credit);
+        document.getElementById('payBalance').textContent = fmt(data.balance);
+        document.getElementById('cntPays').textContent = (data.items || []).length;
+        const tb = document.getElementById('payTbody');
+        const items = data.items || [];
+        if (items.length === 0) {
+            tb.innerHTML = `<tr><td colspan="9" class="text-center text-slate-400 py-10"><i class="fa-solid fa-receipt text-3xl block mb-2"></i>No payments recorded. Click <b>Add Payment / Invoice</b> to record one.</td></tr>`;
+            return;
+        }
+        tb.innerHTML = items.map(p => {
+            const isPay = (p.entry_type||'').toUpperCase() === 'PAYMENT';
+            const pill = isPay
+                ? '<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700">PAYMENT</span>'
+                : '<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700">INVOICE</span>';
+            return `<tr>
+                <td>${p.entry_date || '—'}</td>
+                <td class="font-mono text-xs"><a href="/api/demands/${DEMAND_ID}/payments/${p.id}/receipt" target="_blank" class="text-blue-600 hover:underline font-semibold">${p.receipt_no||'—'}</a></td>
+                <td>${pill}</td>
+                <td>${p.payment_method||'—'}</td>
+                <td class="text-xs">${p.reference||'<span class="text-slate-300">—</span>'}</td>
+                <td class="text-right font-mono ${p.debit ? 'text-rose-600 font-semibold' : 'text-slate-300'}">${p.debit ? p.debit.toLocaleString(undefined,{minimumFractionDigits:2}) : '—'}</td>
+                <td class="text-right font-mono ${p.credit ? 'text-emerald-600 font-semibold' : 'text-slate-300'}">${p.credit ? p.credit.toLocaleString(undefined,{minimumFractionDigits:2}) : '—'}</td>
+                <td class="text-xs">${p.received_by||'—'}</td>
+                <td class="text-right whitespace-nowrap">
+                    <a href="/api/demands/${DEMAND_ID}/payments/${p.id}/receipt" target="_blank" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded" title="Print receipt"><i class="fa-solid fa-print"></i> Print</a>
+                    <button onclick="deletePayment(${p.id})" class="text-rose-500 hover:bg-rose-50 px-2 py-1 rounded" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
+    } catch(e) {
+        document.getElementById('payTbody').innerHTML = `<tr><td colspan="9" class="text-center text-rose-500 py-6">Could not load payments.</td></tr>`;
+    }
+}
+
+function openPayModal() {
+    const f = document.getElementById('payForm');
+    f.reset();
+    // Default date = today
+    f.elements['entry_date'].value = new Date().toISOString().slice(0,10);
+    // Default type PAYMENT
+    f.elements['entry_type'].value = 'PAYMENT';
+    const m = document.getElementById('payModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closePayModal() {
+    const m = document.getElementById('payModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+}
+async function deletePayment(pid) {
+    if (!confirm('Delete this payment entry? (This also removes it from the client statement.)')) return;
+    try {
+        await axios.delete(`/api/demands/${DEMAND_ID}/payments/${pid}`);
+        loadPayments();
+    } catch (err) {
+        alert('Failed to delete: ' + ((err.response && err.response.data && err.response.data.detail) || err.message));
+    }
+}
+
+async function submitEditTrade(ev) {
+    ev.preventDefault();
+    if (!_EDIT_TRADE_ID) { alert('No trade selected'); return; }
+    const f = ev.target;
+    const payload = {
+        trade: f.elements['trade'].value,
+        quantity: parseInt(f.elements['quantity'].value) || 1,
+        salary: parseFloat(f.elements['salary'].value) || 0,
+        salary_currency: f.elements['salary_currency'].value,
+        contract_years: parseInt(f.elements['contract_years'].value) || 2,
+        notes: f.elements['notes'].value || '',
+    };
+    const cfRaw = f.elements['custom_fields'].value.trim();
+    if (cfRaw) {
+        try { payload.custom_fields = JSON.parse(cfRaw); }
+        catch(e) { alert('Custom Fields must be valid JSON.\n' + e.message); return; }
+    } else {
+        payload.custom_fields = {};
+    }
+    try {
+        await axios.put(`/api/demands/trades/${_EDIT_TRADE_ID}`, payload);
+        closeEditTrade();
+        loadTrades();
+    } catch (err) {
+        alert('Failed to update trade: ' + ((err.response && err.response.data && err.response.data.detail) || err.message));
+    }
+}
+
+async function submitPayment(ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    const payload = {
+        entry_type: f.elements['entry_type'].value,
+        amount: parseFloat(f.elements['amount'].value) || 0,
+        payment_method: f.elements['payment_method'].value,
+        reference: f.elements['reference'].value || '',
+        received_by: f.elements['received_by'].value || '',
+        description: f.elements['description'].value || '',
+        entry_date: f.elements['entry_date'].value || null,
+    };
+    if (payload.amount <= 0) { alert('Amount must be greater than 0'); return; }
+    try {
+        const { data } = await axios.post(`/api/demands/${DEMAND_ID}/payments`, payload);
+        closePayModal();
+        loadPayments();
+        // v7: Auto-print receipt via hidden iframe for PAYMENT entries
+        // (no new tab/popup — matches user requirement: "directly printing
+        // panel view and print without redirect new tab or view").
+        if (data && data.id && payload.entry_type === 'PAYMENT') {
+            printInDemandFrame(`/api/demands/${DEMAND_ID}/payments/${data.id}/receipt`);
+        }
+    } catch (err) {
+        alert('Failed to save payment: ' + ((err.response && err.response.data && err.response.data.detail) || err.message));
+    }
+}
+
+// ----- 5-step Assign Wizard -----
+let _AW_TRADE_ID = null;
+let _AW_TRADE_NAME = '';
+let _AW_STEP = 1;
+const _AW_TOTAL = 5;
+
+// Data-entry modes (assign/edit) open the flyout FULL-SCREEN so the candidate
+// page's centered modal is centered on the whole viewport (per real-demo spec).
+// View mode keeps the right-side read-only drawer.
+function _setFlyoutFullscreen(on) {
+    const panel = document.getElementById('candidateFlyout');
+    const header = document.getElementById('candidateFlyoutHeader');
+    if (!panel) return;
+    if (on) {
+        // Transparent full-viewport container — the iframe's centered modal does the visuals
+        panel.classList.add('max-w-none', 'bg-transparent', 'shadow-none');
+        panel.classList.remove('max-w-[820px]', 'bg-white', 'shadow-2xl');
+        if (header) header.classList.add('hidden');
+    } else {
+        panel.classList.remove('max-w-none', 'bg-transparent', 'shadow-none');
+        panel.classList.add('max-w-[820px]', 'bg-white', 'shadow-2xl');
+        if (header) header.classList.remove('hidden');
+    }
+}
+
+// v8: Assign Candidate now opens a CHOICE picker first — "Create new" vs
+// "Pick existing" — instead of jumping straight to the new-candidate wizard.
+// Addresses Turn 5 user complaint: "unprofessional style and flow of
+// assign candidate from demand file".
+let _ASSIGN_CTX = { tradeId: null, tradeName: '', salary: 0 };
+
+function openAssignWizard(tradeId, tradeName, salary) {
+    _ASSIGN_CTX = { tradeId: tradeId, tradeName: tradeName, salary: salary };
+    // Populate the choice modal
+    const tn = document.getElementById('assignChoiceTradeName');
+    if (tn) tn.textContent = tradeName;
+    const sal = document.getElementById('assignChoiceSalary');
+    if (sal) sal.textContent = salary ? (Number(salary).toLocaleString() + ' SAR') : '—';
+    // Reset search
+    const sb = document.getElementById('assignSearchBox');
+    if (sb) sb.value = '';
+    const sr = document.getElementById('assignSearchResults');
+    if (sr) sr.innerHTML = '';
+    // Show modal
+    const m = document.getElementById('assignChoiceModal');
+    if (m) m.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAssignChoice() {
+    const m = document.getElementById('assignChoiceModal');
+    if (m) m.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function assignChoiceCreateNew() {
+    closeAssignChoice();
+    // Open the polished candidate wizard with OCR + Arabic auto-translate
+    const panel = document.getElementById('candidateFlyout');
+    const frame = document.getElementById('candidateFlyoutFrame');
+    const title = document.getElementById('candidateFlyoutTitle');
+    if (!panel || !frame) return;
+    _setFlyoutFullscreen(true);
+    frame.src = `/candidates?wizard=1&trade_id=${_ASSIGN_CTX.tradeId}&flyout=1`;
+    title.textContent = `Assign Candidate to ${_ASSIGN_CTX.tradeName}`;
+    panel.classList.remove('translate-x-full');
+    panel.classList.add('translate-x-0');
+    document.body.style.overflow = 'hidden';
+}
+
+// v8 NEW: search existing candidates (unassigned only) and one-click assign.
+let _assignSearchTimer = null;
+function assignSearchInput(ev) {
+    const q = (ev.target.value || '').trim();
+    clearTimeout(_assignSearchTimer);
+    if (!q) {
+        document.getElementById('assignSearchResults').innerHTML = '';
+        return;
+    }
+    _assignSearchTimer = setTimeout(() => doAssignSearch(q), 200);
+}
+
+async function doAssignSearch(q) {
+    const res = document.getElementById('assignSearchResults');
+    res.innerHTML = '<div class="text-xs text-slate-400 p-3"><i class="fa-solid fa-spinner fa-spin"></i> Searching…</div>';
+    try {
+        // Reuse the candidates list endpoint with a search query
+        const { data } = await axios.get('/api/candidates/', { params: { q: q, limit: 12 } });
+        // Endpoint returns { total, items, ... } OR a plain array depending on version
+        const items = (data && data.items) ? data.items : (Array.isArray(data) ? data : []);
+        if (!items.length) {
+            res.innerHTML = '<div class="text-xs text-slate-400 p-3 italic">No candidates match this search.</div>';
+            return;
+        }
+        res.innerHTML = items.map(c => {
+            const isAssigned = c.demand_file_no || c.assignment_id;
+            const badge = isAssigned
+                ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-semibold">ALREADY ASSIGNED</span>'
+                : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold">AVAILABLE</span>';
+            const disabled = isAssigned ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-emerald-50';
+            const onClick = isAssigned ? '' : `onclick="assignExistingCandidate(${c.id}, '${(c.full_name||'').replace(/'/g,"\\'")}')"`;
+            return `<div ${onClick} class="flex items-center gap-3 px-3 py-2.5 border border-slate-200 rounded-lg ${disabled} mb-1.5 bg-white">
+                <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 flex-shrink-0">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-slate-800 truncate">${(c.full_name||'—').toUpperCase()}</div>
+                    <div class="text-[11px] text-slate-500 truncate">${c.passport_no || '—'} · ${c.profession || c.cnic || '—'}</div>
+                </div>
+                <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                    ${badge}
+                    ${!isAssigned ? '<i class="fa-solid fa-arrow-right text-emerald-600 text-xs"></i>' : ''}
+                </div>
+            </div>`;
+        }).join('');
+    } catch (err) {
+        res.innerHTML = `<div class="text-xs text-rose-600 p-3">Search failed: ${err.message}</div>`;
+    }
+}
+
+async function assignExistingCandidate(candidateId, candidateName) {
+    if (!_ASSIGN_CTX.tradeId) return;
+    if (!confirm(`Assign existing candidate "${candidateName}" to ${_ASSIGN_CTX.tradeName}?`)) return;
+    try {
+        const { data } = await axios.post(`/api/demands/trades/${_ASSIGN_CTX.tradeId}/assign`, {
+            candidate_id: candidateId,
+        });
+        closeAssignChoice();
+        showToast(`✅ ${candidateName} assigned to ${_ASSIGN_CTX.tradeName}`);
+        loadTrades(); loadSummary();
+    } catch (err) {
+        alert('Failed to assign: ' + ((err.response && err.response.data && err.response.data.detail) || err.message));
+    }
+}
+
+function closeAssignWizard() {
+    closeCandidateFlyout();
+    closeAssignChoice();
+}
+
+
+
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'fixed top-5 right-5 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-lg text-sm font-semibold z-[100]';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .4s'; setTimeout(() => t.remove(), 400); }, 2500);
+}
+
+async function removeAssign(id) {
+    if (!confirm('Unassign this candidate from the trade?\n\nThis will:\n• Remove the candidate-trade link\n• Reset the candidate workflow stage to "New"\n• Clear any derived document context\n• Record an audit log entry')) return;
+    try {
+        const { data } = await axios.delete(`/api/demands/assignments/${id}`);
+        loadTrades(); loadSummary();
+    } catch (err) {
+        alert('Failed to unassign: ' + ((err.response && err.response.data && err.response.data.detail) || err.message));
+    }
+}
+
+// Unassign ALL candidates from a filled trade (the trade-level Unassign button)
+async function unassignAll(tradeId) {
+    try {
+        const { data: trades } = await axios.get(`/api/demands/${DEMAND_ID}/trades`);
+        const t = (trades || []).find(x => x.id === tradeId);
+        if (!t || !t.candidates || t.candidates.length === 0) {
+            alert('No candidates are currently assigned to this trade.');
+            return;
+        }
+        const names = t.candidates.map(c => '• ' + (c.full_name || '—')).join('\n');
+        if (!confirm(`Unassign ALL ${t.candidates.length} candidate(s) from "${t.trade}"?\n\n${names}\n\nThis will reset each candidate's workflow stage and clear the slot. An audit log entry is recorded for every unassignment.`)) return;
+        let ok = 0, fail = 0;
+        for (const c of t.candidates) {
+            try { await axios.delete(`/api/demands/assignments/${c.assignment_id}`); ok++; }
+            catch (e) { fail++; }
+        }
+        loadTrades(); loadSummary();
+        showToast(fail === 0 ? `✅ Unassigned ${ok} candidate(s)` : `Unassigned ${ok}, ${fail} failed`);
+    } catch (err) {
+        alert('Failed to unassign: ' + ((err.response && err.response.data && err.response.data.detail) || err.message));
+    }
+}
+
+function printDocument(tplId, recordId) {
+    showGlobalPrintModal(tplId, recordId, "Demand File Document");
+}
+
+// init
+loadDemand();
+loadSummary();
+loadTradeCategories();
+
+// ── INLINE CANDIDATE FLYOUT ────────────────────────────────────────────────
+// Opens a slide-in side panel showing candidate details or edit form
+// WITHOUT navigating away to the candidates list (which confusingly shows
+// the "New" button and full list).
+
+function openCandidateFlyout(candidateId, mode) {
+    // mode = 'view' | 'edit'
+    const panel = document.getElementById('candidateFlyout');
+    const frame = document.getElementById('candidateFlyoutFrame');
+    const title = document.getElementById('candidateFlyoutTitle');
+    if (!panel || !frame) return;
+
+    // Build URL: view opens details modal auto, edit opens edit form auto
+    const param = mode === 'edit' ? 'edit' : 'open';
+    // Edit = data entry → full-screen so the centered modal is centered on viewport.
+    // View = read-only → right-side drawer.
+    _setFlyoutFullscreen(mode === 'edit');
+    frame.src = `/candidates?${param}=${candidateId}&flyout=1`;
+    title.textContent = mode === 'edit' ? 'Edit Candidate' : 'Candidate Details';
+
+    panel.classList.remove('translate-x-full');
+    panel.classList.add('translate-x-0');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeCandidateFlyout() {
+    const panel = document.getElementById('candidateFlyout');
+    if (!panel) return;
+    panel.classList.remove('translate-x-0');
+    panel.classList.add('translate-x-full');
+    document.body.style.overflow = '';
+    // Reset to right-side drawer styling for next open
+    setTimeout(() => _setFlyoutFullscreen(false), 350);
+    // Reload trades in case candidate was edited (passport, status etc.)
+    setTimeout(() => loadTrades(), 400);
+}
+</script>
+
+<!-- ─────────────────────────────────────────────────────────────────────
+     v8 ASSIGN-CANDIDATE CHOICE MODAL (Turn 5 UX fix)
+     Replaces the old "straight to new-candidate wizard" jump with a
+     professional CHOICE picker: Create New (AI-powered OCR) OR Pick Existing
+     (instant 1-click assignment). Addresses the user's "unprofessional
+     style and flow" complaint head-on.
+─────────────────────────────────────────────────────────────────────── -->
+<div id="assignChoiceModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[70] p-4" style="display: none;">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4 flex flex-col max-h-[92vh]"
+         onclick="event.stopPropagation()">
+
+        <!-- Header with trade context badge -->
+        <div class="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-emerald-50 rounded-t-2xl">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 min-w-0">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Assign Candidate</div>
+                    <h3 class="font-bold text-slate-800 text-lg leading-tight">
+                        to <span id="assignChoiceTradeName" class="text-blue-700">—</span>
+                    </h3>
+                    <div class="mt-1.5 flex items-center gap-3 text-xs text-slate-600">
+                        <span><i class="fa-solid fa-money-bill-trend-up text-emerald-600"></i> Salary: <b id="assignChoiceSalary">—</b></span>
+                        <span class="text-slate-300">·</span>
+                        <span class="text-slate-500">Choose how to fill this slot:</span>
+                    </div>
+                </div>
+                <button onclick="closeAssignChoice()" class="text-slate-400 hover:text-slate-700 text-xl flex-shrink-0">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Body: two clear choices -->
+        <div class="px-6 py-5 space-y-4 overflow-y-auto">
+            <!-- Choice 1: Create new (AI-powered) -->
+            <button type="button" onclick="assignChoiceCreateNew()"
+                    class="w-full text-left p-4 border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-emerald-50 hover:border-indigo-400 hover:shadow-md rounded-xl transition group">
+                <div class="flex items-start gap-4">
+                    <div class="w-14 h-14 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow group-hover:scale-105 transition">
+                        <i class="fa-solid fa-user-plus text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                            <h4 class="font-bold text-slate-800">Create New Candidate</h4>
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-600 text-white font-semibold">AI · OCR</span>
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-600 text-white font-semibold">Arabic auto-fill</span>
+                        </div>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            Scan a passport → AI auto-fills <b>name, father, PP#, DOB, expiry,
+                            place of issue, CNIC, nationality, gender</b> AND auto-translates
+                            the name to Saudi Arabic. Continue through the 7-step wizard, save,
+                            and the candidate is automatically linked to this trade slot.
+                        </p>
+                    </div>
+                    <i class="fa-solid fa-arrow-right text-indigo-500 mt-4 group-hover:translate-x-1 transition"></i>
+                </div>
+            </button>
+
+            <!-- Choice 2: Pick existing -->
+            <div class="p-4 border-2 border-slate-200 bg-white rounded-xl">
+                <div class="flex items-start gap-4 mb-3">
+                    <div class="w-14 h-14 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow">
+                        <i class="fa-solid fa-magnifying-glass text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <h4 class="font-bold text-slate-800">Pick Existing Candidate</h4>
+                            <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-600 text-white font-semibold">1-click</span>
+                        </div>
+                        <p class="text-xs text-slate-600 leading-relaxed mb-2">
+                            Search the candidate database by <b>name, passport, or CNIC</b>.
+                            Pick an unassigned candidate to link them to this slot instantly —
+                            no re-typing data.
+                        </p>
+                    </div>
+                </div>
+                <div class="relative">
+                    <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none"></i>
+                    <input id="assignSearchBox" type="text" oninput="assignSearchInput(event)" autocomplete="off"
+                           placeholder="Search by name, passport number, or CNIC…"
+                           class="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400">
+                </div>
+                <div id="assignSearchResults" class="mt-3 max-h-72 overflow-y-auto"></div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-3 border-t border-slate-200 bg-slate-50 rounded-b-2xl flex items-center justify-between">
+            <span class="text-[11px] text-slate-500">Press <kbd class="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[10px] font-mono">Esc</kbd> to cancel</span>
+            <button onclick="closeAssignChoice()" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-white border border-slate-300 rounded-md">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Make Esc close the assign-choice modal (in addition to flyout)
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        const m = document.getElementById('assignChoiceModal');
+        if (m && !m.classList.contains('hidden')) closeAssignChoice();
+    }
+});
+// Backdrop click closes
+(function() {
+    const m = document.getElementById('assignChoiceModal');
+    if (m) m.addEventListener('click', closeAssignChoice);
+})();
+// Ensure modal display:flex when not hidden (style override)
+const _origRemove = DOMTokenList.prototype.remove;
+</script>
+<style>
+#assignChoiceModal:not(.hidden) { display: flex !important; }
+</style>
+
+
+<!-- ── CANDIDATE FLYOUT PANEL ──────────────────────────────────────────── -->
+<!-- Slides in from right — shows candidate detail/edit WITHOUT navigating
+     away to the candidates list page (which shows the "New" button and
+     full list, confusing users during the assign workflow). -->
+<div id="candidateFlyout"
+     class="fixed top-0 right-0 h-full w-full max-w-[820px] bg-white shadow-2xl z-[60]
+            transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+
+    <!-- Header -->
+    <div id="candidateFlyoutHeader" class="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                <i class="fa-solid fa-id-badge text-white text-sm"></i>
+            </div>
+            <span id="candidateFlyoutTitle" class="font-bold text-slate-800 text-sm">Candidate Details</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="text-[11.5px] text-slate-400 hidden sm:inline">Press Esc or × to close</span>
+            <button onclick="closeCandidateFlyout()"
+                    class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                    title="Close panel">
+                <i class="fa-solid fa-xmark text-base"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Candidate page embedded (auto-opens the correct modal via URL param) -->
+    <iframe id="candidateFlyoutFrame"
+            src="about:blank"
+            class="flex-1 border-0 w-full"
+            title="Candidate Panel">
+    </iframe>
+</div>
+
+<!-- Semi-transparent backdrop -->
+<div id="candidateFlyoutBackdrop"
+     onclick="closeCandidateFlyout()"
+     class="fixed inset-0 bg-black/30 z-[59] hidden"></div>
+
+<script>
+(function() {
+    const flyout   = document.getElementById('candidateFlyout');
+    const backdrop = document.getElementById('candidateFlyoutBackdrop');
+    // Sync backdrop visibility with flyout open/close state
+    new MutationObserver(() => {
+        backdrop.classList.toggle('hidden', flyout.classList.contains('translate-x-full'));
+    }).observe(flyout, { attributes: true, attributeFilter: ['class'] });
+    // Esc closes flyout
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCandidateFlyout(); });
+})();
+</script>
+{% endblock %}

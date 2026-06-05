@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+{% block title %}Protector Letter · {{ company_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-regular fa-envelope-open text-blue-600"></i> Protector Letter
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">Build a batch of emigrants by passport number, then auto-print the three Protector documents on the company letterhead.</p>
+    </div>
+    <div class="flex gap-2">
+        <button id="btnReset" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+            <i class="fa-solid fa-rotate-left"></i> Reset
+        </button>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Add Passports card -->
+<!-- ============================================================ -->
+<div class="card mb-5">
+    <div class="card-header">
+        <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-passport text-blue-600"></i> Add Passport
+        </h3>
+    </div>
+    <div class="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Passport Number <span class="text-red-500">*</span></label>
+            <input id="ppInput" type="text" placeholder="e.g. BQ5930731"
+                   class="w-full px-3 py-2 border border-slate-300 rounded-lg uppercase tracking-wide font-mono text-sm focus:outline-none focus:border-blue-500">
+            <div id="ppErr" class="text-xs text-red-600 mt-1 hidden"></div>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Upload txt File <span class="text-slate-400 font-normal">(one passport per line)</span></label>
+            <input id="ppFile" type="file" accept=".txt,text/plain"
+                   class="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200">
+        </div>
+        <div class="flex gap-2">
+            <button id="btnGetData" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="fa-solid fa-download"></i> Get Data
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Items table -->
+<!-- ============================================================ -->
+<div class="card mb-5">
+    <div class="card-header flex items-center justify-between">
+        <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-blue-600"></i> Items
+            <span id="itemsCount" class="text-xs text-slate-400 font-normal"></span>
+        </h3>
+        <div class="flex gap-2">
+            <button id="btnPrintMain"   class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md disabled:opacity-50">
+                <i class="fa-regular fa-file-lines mr-1"></i> Main Letter
+            </button>
+            <button id="btnPrintUndB"   class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md disabled:opacity-50">
+                Undertaking-B
+            </button>
+            <button id="btnPrintUnd"    class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md disabled:opacity-50">
+                Undertaking
+            </button>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width:6%">#</th>
+                    <th style="width:18%">Passport Number</th>
+                    <th style="width:22%">Name</th>
+                    <th style="width:22%">Father Name</th>
+                    <th>Permission</th>
+                    <th style="width:6%"></th>
+                </tr>
+            </thead>
+            <tbody id="itemsBody">
+                <tr><td colspan="6" class="text-center text-sm text-slate-400 py-6">No passports added yet. Use the form above to add one.</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="p-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
+        <div class="text-xs text-slate-500">
+            All three Protector documents (Main Letter + Undertaking-B + Undertaking) will be printed in a single job.
+        </div>
+        <button id="btnPrintAll" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+            <i class="fa-solid fa-print"></i> Print Letters
+        </button>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Optional overrides -->
+<!-- ============================================================ -->
+<div class="card mb-5">
+    <div class="card-header">
+        <h3 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+            <i class="fa-solid fa-sliders text-slate-500"></i> Letter Details
+            <span class="text-xs text-slate-400 font-normal">(optional — auto-fills from demand if blank)</span>
+        </h3>
+    </div>
+    <div class="p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">File Number</label>
+            <input id="fldFileNo"          type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Letter Date</label>
+            <input id="fldLetterDate"      type="date" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Airport of Entry</label>
+            <input id="fldAirport"         type="text" placeholder="JEDDAH" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Registration Fee (Rs.)</label>
+            <input id="fldFee"             type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Challan No.</label>
+            <input id="fldChallanNo"       type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Challan Date</label>
+            <input id="fldChallanDate"     type="text" placeholder="DD/MM/YYYY" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Permission Granted For</label>
+            <input id="fldPermGranted"     type="text" placeholder="e.g. 25" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Balance Workers</label>
+            <input id="fldBalance"         type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg">
+        </div>
+    </div>
+</div>
+
+<style>
+    .card { background:#fff; border:1px solid #e2e8f0; border-radius:.65rem; overflow:hidden; }
+    .card-header { padding:.85rem 1rem; border-bottom:1px solid #e2e8f0; background:#f8fafc; display:flex; align-items:center; justify-content:space-between; }
+    .data-table { width:100%; border-collapse:collapse; font-size:.86rem; }
+    .data-table th, .data-table td { padding:.65rem .9rem; text-align:left; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+    .data-table th { background:#f8fafc; font-weight:600; color:#334155; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
+    .data-table tbody tr:hover { background:#f8fafc; }
+    .pp-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing:.5px; }
+    .btn-x { color:#dc2626; background:#fee2e2; border:0; width:26px; height:26px; border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+    .btn-x:hover { background:#fecaca; }
+    .toast {
+        position: fixed; right: 18px; bottom: 18px; z-index: 9999;
+        background: #1e293b; color: white; padding: 10px 14px; border-radius: 8px;
+        font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.25);
+        opacity:0; transition: opacity .25s ease, transform .25s ease;
+        transform: translateY(8px);
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.err { background: #b91c1c; }
+</style>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(function () {
+    "use strict";
+
+    // ----- State ----------------------------------------------------
+    // items is an array of rows shaped like:
+    //   { id, passport_no, full_name, father_name,
+    //     permission_no, permission_date, permission_display,
+    //     demand_id, demand_file_no, sponsor_name,
+    //     e_number, profession }
+    const items = [];
+
+    // ----- DOM ------------------------------------------------------
+    const $ppInput   = document.getElementById('ppInput');
+    const $ppFile    = document.getElementById('ppFile');
+    const $ppErr     = document.getElementById('ppErr');
+    const $btnGet    = document.getElementById('btnGetData');
+    const $btnReset  = document.getElementById('btnReset');
+    const $btnPrintAll = document.getElementById('btnPrintAll');
+    const $btnMain   = document.getElementById('btnPrintMain');
+    const $btnUndB   = document.getElementById('btnPrintUndB');
+    const $btnUnd    = document.getElementById('btnPrintUnd');
+    const $body      = document.getElementById('itemsBody');
+    const $count     = document.getElementById('itemsCount');
+    const $toast     = document.getElementById('toast');
+
+    // ----- Utils ----------------------------------------------------
+    function showErr(msg) {
+        $ppErr.textContent = msg || '';
+        $ppErr.classList.toggle('hidden', !msg);
+    }
+    function toast(msg, isErr) {
+        $toast.textContent = msg;
+        $toast.classList.toggle('err', !!isErr);
+        $toast.classList.add('show');
+        setTimeout(() => $toast.classList.remove('show'), 2400);
+    }
+    function setBusy(busy) {
+        [$btnGet, $btnPrintAll, $btnMain, $btnUndB, $btnUnd].forEach(b => b.disabled = busy);
+    }
+    function escapeHTML(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // ----- Render table --------------------------------------------
+    function renderTable() {
+        if (!items.length) {
+            $body.innerHTML = `<tr><td colspan="6" class="text-center text-sm text-slate-400 py-6">No passports added yet. Use the form above to add one.</td></tr>`;
+        } else {
+            $body.innerHTML = items.map((r, i) => `
+                <tr>
+                    <td class="text-slate-500">${i + 1}</td>
+                    <td class="pp-mono font-semibold text-slate-800">${escapeHTML(r.passport_no)}</td>
+                    <td>${escapeHTML(r.full_name) || '—'}</td>
+                    <td>${escapeHTML(r.father_name) || '—'}</td>
+                    <td>${escapeHTML(r.permission_display) || (r.permission_no ? escapeHTML(r.permission_no) : '—')}</td>
+                    <td class="text-right">
+                        <button class="btn-x" title="Remove" data-rm="${r.id}"><i class="fa-solid fa-xmark"></i></button>
+                    </td>
+                </tr>`).join('');
+            $body.querySelectorAll('button[data-rm]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = parseInt(btn.getAttribute('data-rm'), 10);
+                    const idx = items.findIndex(x => x.id === id);
+                    if (idx > -1) items.splice(idx, 1);
+                    renderTable();
+                });
+            });
+        }
+        $count.textContent = items.length ? `· ${items.length}` : '';
+        const hasItems = items.length > 0;
+        $btnPrintAll.disabled = !hasItems;
+        $btnMain.disabled = !hasItems;
+        $btnUndB.disabled = !hasItems;
+        $btnUnd.disabled  = !hasItems;
+
+        // Auto-populate File Number from the first row's demand if user hasn't typed one.
+        const fileEl = document.getElementById('fldFileNo');
+        if (fileEl && !fileEl.value && items[0] && items[0].demand_file_no) {
+            fileEl.value = items[0].demand_file_no;
+        }
+    }
+
+    // ----- Add by single passport -----------------------------------
+    async function addPassport(pn) {
+        pn = (pn || '').trim().toUpperCase();
+        if (!pn) return false;
+        if (items.find(r => (r.passport_no || '').toUpperCase() === pn)) {
+            toast('Already in the list: ' + pn, true);
+            return false;
+        }
+        try {
+            const res = await fetch(`/api/protector-letters/lookup?passport_no=${encodeURIComponent(pn)}`, {
+                credentials: 'include',
+            });
+            if (res.status === 404) {
+                showErr(`No candidate found for passport ${pn}`);
+                toast(`Not found: ${pn}`, true);
+                return false;
+            }
+            if (!res.ok) {
+                const txt = await res.text();
+                showErr(`Server error (${res.status}): ${txt.slice(0, 200)}`);
+                return false;
+            }
+            const row = await res.json();
+            items.push(row);
+            renderTable();
+            showErr('');
+            return true;
+        } catch (err) {
+            showErr('Network error: ' + err.message);
+            return false;
+        }
+    }
+
+    // ----- Handlers -------------------------------------------------
+    $btnGet.addEventListener('click', async () => {
+        setBusy(true);
+        try {
+            // 1. If a file is selected, dispatch all passports through bulk endpoint.
+            const file = $ppFile.files[0];
+            if (file) {
+                const text = await file.text();
+                const lines = text.split(/[\r\n,;\s]+/).map(s => s.trim()).filter(Boolean);
+                if (!lines.length) {
+                    showErr('The selected file contains no passport numbers.');
+                    return;
+                }
+                const res = await fetch('/api/protector-letters/lookup/bulk', {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ passport_numbers: lines }),
+                });
+                if (!res.ok) {
+                    showErr(`Server error (${res.status})`);
+                    return;
+                }
+                const data = await res.json();
+                const seen = new Set(items.map(r => (r.passport_no || '').toUpperCase()));
+                let added = 0;
+                for (const row of data.found) {
+                    const k = (row.passport_no || '').toUpperCase();
+                    if (seen.has(k)) continue;
+                    seen.add(k);
+                    items.push(row);
+                    added++;
+                }
+                renderTable();
+                $ppFile.value = '';
+                if (data.missing.length) {
+                    toast(`Added ${added}. Missing: ${data.missing.length}`, true);
+                    showErr('Not found: ' + data.missing.join(', '));
+                } else {
+                    toast(`Added ${added} passport(s)`);
+                    showErr('');
+                }
+                return;
+            }
+            // 2. Otherwise just look up the typed passport.
+            const pn = $ppInput.value;
+            if (!pn.trim()) {
+                showErr('Enter a passport number first.');
+                return;
+            }
+            const ok = await addPassport(pn);
+            if (ok) {
+                $ppInput.value = '';
+                toast('Added');
+            }
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    $ppInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); $btnGet.click(); }
+    });
+
+    $btnReset.addEventListener('click', () => {
+        if (!items.length) return;
+        if (!confirm('Clear the Items list?')) return;
+        items.length = 0;
+        renderTable();
+        $ppInput.value = '';
+        $ppFile.value = '';
+        showErr('');
+    });
+
+    // ----- Print ----------------------------------------------------
+    function buildPayload(includeArr) {
+        return {
+            candidate_ids: items.map(r => r.id),
+            demand_id: items[0] && items[0].demand_id ? items[0].demand_id : null,
+            file_number: document.getElementById('fldFileNo').value || null,
+            letter_date: document.getElementById('fldLetterDate').value || null,
+            embassy_entry_airport: document.getElementById('fldAirport').value || null,
+            registration_fee: document.getElementById('fldFee').value || null,
+            challan_no: document.getElementById('fldChallanNo').value || null,
+            challan_date: document.getElementById('fldChallanDate').value || null,
+            permission_granted: document.getElementById('fldPermGranted').value || null,
+            balance: document.getElementById('fldBalance').value || null,
+            include: includeArr || null,
+        };
+    }
+
+    async function postAndOpen(url, payload) {
+        // Post the payload, capture the HTML, and open it in a new tab via a
+        // Blob URL. Avoids round-trip-via-form-target gymnastics and works in
+        // every modern browser including the in-app webview.
+        setBusy(true);
+        try {
+            const res = await fetch(url, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) {
+                const txt = await res.text();
+                toast(`Print failed: ${res.status}`, true);
+                console.error('Print error:', txt);
+                return;
+            }
+            const html = await res.text();
+            const blob = new Blob([html], { type: 'text/html' });
+            const url2 = URL.createObjectURL(blob);
+            const win = window.open(url2, '_blank');
+            if (!win) {
+                toast('Popup blocked — allow popups for this site', true);
+            }
+            // Release the object URL after a beat so the new tab has time to load.
+            setTimeout(() => URL.revokeObjectURL(url2), 60_000);
+        } catch (err) {
+            toast('Network error: ' + err.message, true);
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    $btnPrintAll.addEventListener('click', () => {
+        if (!items.length) return;
+        postAndOpen('/api/protector-letters/print/packet', buildPayload(['main', 'undertaking_b', 'undertaking']));
+    });
+    $btnMain.addEventListener('click', () => {
+        if (!items.length) return;
+        postAndOpen('/api/protector-letters/print/main', buildPayload());
+    });
+    $btnUndB.addEventListener('click', () => {
+        if (!items.length) return;
+        postAndOpen('/api/protector-letters/print/undertaking-b', buildPayload());
+    });
+    $btnUnd.addEventListener('click', () => {
+        if (!items.length) return;
+        postAndOpen('/api/protector-letters/print/undertaking', buildPayload());
+    });
+
+    // Initial paint
+    renderTable();
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+{% block title %}Demand Files · {{ company_name }}{% endblock %}
+{% block page_title %}Demand Files{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-regular fa-folder-open text-blue-600"></i> Demand Files
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">All sponsor demand files (newest first).</p>
+    </div>
+    <button onclick="openNewModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+        <i class="fa-solid fa-plus"></i> New Demand
+    </button>
+</div>
+
+<div class="card">
+    <!-- Filter strip matching reference: Search · Client · Status · Visa Category · Embassy · Country -->
+    <div class="card-header flex-wrap gap-y-2">
+        <div class="flex items-center gap-2 flex-wrap w-full">
+            <div class="relative flex-1 max-w-xs">
+                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                <input id="searchInput" type="text" placeholder="Search file number, sponsor..." class="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-full focus:outline-none focus:border-blue-500">
+            </div>
+            <select id="clientFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-44">
+                <option value="">Search client...</option>
+            </select>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap w-full">
+            <select id="statusFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-28">
+                <option value="">Status</option>
+                <option value="">All</option>
+                <option value="active">Active</option>
+                <option value="processing">Processing</option>
+                <option value="filled">Filled</option>
+                <option value="expired">Expired</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            <select id="categoryFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-44">
+                <option value="">Search visa category...</option>
+            </select>
+            <select id="embassyFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-36">
+                <option value="">Embassy</option>
+                <option value="">All</option>
+            </select>
+            <select id="countryFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-36">
+                <option value="">Country</option>
+                <option value="">All</option>
+                <option value="Saudi Arabia">Saudi Arabia</option>
+                <option value="UAE">UAE</option>
+                <option value="Qatar">Qatar</option>
+                <option value="Kuwait">Kuwait</option>
+                <option value="Oman">Oman</option>
+                <option value="Bahrain">Bahrain</option>
+            </select>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>File #</th>
+                    <th>Visa #</th>
+                    <th>Receiving Date</th>
+                    <th>Sponsor</th>
+                    <th>Embassy</th>
+                    <th>Status</th>
+                    <th class="text-center">Trades</th>
+                    <th class="w-12 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+    <!-- Pagination footer matching reference: N total · Page X of Y · 30 per page · Prev · Next -->
+    <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500" id="paginationBar">
+        <div id="pgInfo">—</div>
+        <div class="flex items-center gap-2">
+            <select id="pgSize" class="border border-slate-200 rounded px-2 py-1 text-xs">
+                <option value="10">10 per page</option>
+                <option value="20" selected>20 per page</option>
+                <option value="50">50 per page</option>
+                <option value="100">100 per page</option>
+            </select>
+            <button id="pgPrev" class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40" onclick="changePage(-1)">Prev</button>
+            <button id="pgNext" class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40" onclick="changePage(1)">Next</button>
+        </div>
+    </div>
+</div>
+
+<!-- ================= NEW / EDIT DEMAND MODAL ================= -->
+<div id="modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 overflow-y-auto py-6">
+    <div class="bg-white rounded-xl shadow-xl w-[800px] max-w-[95vw] max-h-[92vh] overflow-y-auto mx-auto">
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+            <h3 id="modalTitle" class="font-bold text-slate-800">Create New Demand File</h3>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="demandForm" class="p-5 space-y-5 text-sm">
+            <input type="hidden" name="id">
+
+            <!-- Basic Info -->
+            <div>
+                <h4 class="font-semibold text-slate-700 mb-3 flex items-center gap-1.5"><i class="fa-regular fa-circle-dot text-blue-500"></i> Basic Information</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="form-label">Client *</label>
+                        <select name="client_id" required class="form-select" id="clientSelect">
+                            <option value="">— Select Client —</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">File Number</label>
+                        <input name="file_number" id="newFileNumber" placeholder="Auto-generated (e.g. DTC/786/8186)" class="form-input">
+                        <p class="text-[11px] text-slate-400 mt-0.5">Leave blank to auto-generate. Format: <code class="text-blue-600">DTC/786/&lt;seq&gt;</code></p>
+                    </div>
+                    <div>
+                        <label class="form-label">Receiving Date</label>
+                        <input name="receiving_date" type="date" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Permission No.</label>
+                        <input name="permission_no" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Permission Date</label>
+                        <input name="permission_date" type="date" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Reference</label>
+                        <input name="reference" class="form-input">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sponsor Info -->
+            <div>
+                <h4 class="font-semibold text-slate-700 mb-3 flex items-center gap-1.5"><i class="fa-solid fa-handshake text-blue-500"></i> Sponsor Information</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="form-label">Sponsor Name</label>
+                        <input name="sponsor_name" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Sponsor Name (Arabic)</label>
+                        <input name="sponsor_name_arabic" dir="rtl" class="form-input">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="form-label">Sponsor Address</label>
+                        <textarea name="sponsor_address" rows="2" class="form-textarea"></textarea>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="form-label">Sponsor Address (Arabic)</label>
+                        <textarea name="sponsor_address_arabic" rows="2" dir="rtl" class="form-textarea"></textarea>
+                    </div>
+                    <div>
+                        <label class="form-label">Sponsor Phone</label>
+                        <input name="sponsor_phone" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Alternate Phone</label>
+                        <input name="sponsor_alt_phone" class="form-input">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visa Info -->
+            <div>
+                <h4 class="font-semibold text-slate-700 mb-3 flex items-center gap-1.5"><i class="fa-regular fa-id-card text-blue-500"></i> Visa Information</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="form-label">Visa Number</label>
+                        <input name="visa_number" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Bataka Number</label>
+                        <input name="bataka_number" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Visa Issue Date</label>
+                        <input name="visa_issue_date" type="date" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Visa Issue Date (Hijri)</label>
+                        <input name="visa_issue_date_hijri" placeholder="e.g. 1446-08-15" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Country</label>
+                        <select name="country" class="form-select">
+                            <option value="Saudi Arabia">Saudi Arabia</option>
+                            <option value="UAE">UAE</option>
+                            <option value="Qatar">Qatar</option>
+                            <option value="Kuwait">Kuwait</option>
+                            <option value="Oman">Oman</option>
+                            <option value="Bahrain">Bahrain</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Embassy</label>
+                        <select name="embassy" id="embassySelect" class="form-select">
+                            <option value="">— Select Embassy —</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Document Count</label>
+                        <input name="document_count" type="number" value="0" class="form-input">
+                    </div>
+                    <div>
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="active">Active</option>
+                            <option value="processing">Processing</option>
+                            <option value="filled">Filled</option>
+                            <option value="expired">Expired</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk mr-1"></i> Save Demand</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let DEMANDS = [];
+let currentPage = 1;
+
+async function loadClients() {
+    const { data } = await axios.get('/api/clients/?limit=500');
+    const items = data.items || [];
+    // Main modal select
+    const sel = document.getElementById('clientSelect');
+    sel.innerHTML = '<option value="">-- Select Client --</option>' +
+        items.map(c => `<option value="${c.id}">${c.company_name}</option>`).join('');
+    // Filter select
+    const fSel = document.getElementById('clientFilter');
+    fSel.innerHTML = '<option value="">Search client...</option>' +
+        items.map(c => `<option value="${c.id}">${c.company_name}</option>`).join('');
+}
+async function loadEmbassies() {
+    const { data } = await axios.get('/api/lookups/embassies?limit=500');
+    const items = data.items || [];
+    const sel = document.getElementById('embassySelect');
+    sel.innerHTML = '<option value="">-- Select Embassy --</option>' +
+        items.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
+    const fSel = document.getElementById('embassyFilter');
+    fSel.innerHTML = '<option value="">Embassy</option><option value="">All</option>' +
+        items.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
+}
+async function loadCategories() {
+    try {
+        const { data } = await axios.get('/api/lookups/trades?limit=500');
+        const items = data.items || data || [];
+        const sel = document.getElementById('categoryFilter');
+        sel.innerHTML = '<option value="">Search visa category...</option>' +
+            items.map(t => `<option value="${t.name || t}">${t.name || t}</option>`).join('');
+    } catch(e) {}
+}
+
+async function loadDemands() {
+    const q = document.getElementById('searchInput').value;
+    const clientId = document.getElementById('clientFilter').value;
+    const status = document.getElementById('statusFilter').value;
+    const perPage = parseInt(document.getElementById('pgSize').value);
+
+    const limit = perPage;
+    const skip = (currentPage - 1) * perPage;
+    let url = `/api/demands/?skip=${skip}&limit=${limit}`;
+    if (q) url += `&q=${encodeURIComponent(q)}`;
+    if (clientId) url += `&client_id=${clientId}`;
+    if (status) url += `&status=${status}`;
+
+    const { data } = await axios.get(url);
+    DEMANDS = data.items || [];
+    const total = data.total || 0;
+    const totalPages = Math.ceil(total / perPage) || 1;
+
+    // Pagination
+    document.getElementById('pgInfo').textContent = `${total} total · Page ${currentPage} of ${totalPages}`;
+    document.getElementById('pgPrev').disabled = currentPage <= 1;
+    document.getElementById('pgNext').disabled = currentPage >= totalPages;
+
+    const tbody = document.getElementById('tbody');
+    if (DEMANDS.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-slate-400 py-12"><i class="fa-regular fa-folder-open text-3xl block mb-2"></i>No demand files found.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = DEMANDS.map(d => `
+        <tr class="hover:bg-blue-50/40 group">
+            <td class="font-bold text-blue-600 cursor-pointer" onclick="window.location='/demands/${d.id}'">
+                <div>${d.file_number_display || d.file_number || ''}</div>
+                <div class="text-[11px] font-normal text-slate-400 truncate max-w-[160px]">${d.client_name || ''}</div>
+            </td>
+            <td class="font-mono text-slate-700 cursor-pointer" onclick="window.location='/demands/${d.id}'">${d.visa_number || '—'}</td>
+            <td>${d.receiving_date || '—'}</td>
+            <td class="cursor-pointer" onclick="window.location='/demands/${d.id}'">
+                <div class="text-slate-800 truncate max-w-[220px]">${d.sponsor_name || '—'}</div>
+                ${d.sponsor_name_arabic ? `<div class="text-[11px] text-slate-400 truncate max-w-[220px]" dir="rtl">${d.sponsor_name_arabic}</div>` : ''}
+            </td>
+            <td>
+                ${d.embassy ? `<span class="text-[11px] font-semibold text-slate-600">${d.embassy}</span>` : '—'}
+                ${d.country ? `<div class="text-[11px] text-slate-400">${d.country}</div>` : ''}
+            </td>
+            <td><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${statusClass(d.status)}">${d.status || 'active'}</span></td>
+            <td class="text-center">
+                <span class="font-semibold text-slate-700">${d.assigned_count || 0}</span><span class="text-slate-400">/${d.total_slots || 0}</span>
+                <div class="text-[10px] text-slate-400">${d.trades_count || 0} trade${(d.trades_count||0)===1?'':'s'}</div>
+            </td>
+            <td class="text-center relative">
+                <button onclick="toggleActionMenu(event, ${d.id})" class="text-slate-400 hover:text-slate-700 p-1">
+                    <i class="fa-solid fa-ellipsis"></i>
+                </button>
+                <div id="actionMenu-${d.id}" class="hidden absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 min-w-[120px] py-1">
+                    <a href="/demands/${d.id}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"><i class="fa-regular fa-eye mr-2 text-slate-400"></i>View</a>
+                    <button onclick="deleteDemand(${d.id})" class="block w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50"><i class="fa-regular fa-trash-can mr-2"></i>Delete</button>
+                </div>
+            </td>
+        </tr>`).join('');
+}
+
+function toggleActionMenu(e, id) {
+    e.stopPropagation();
+    // Close all other menus
+    document.querySelectorAll('[id^="actionMenu-"]').forEach(el => {
+        if (el.id !== `actionMenu-${id}`) el.classList.add('hidden');
+    });
+    document.getElementById(`actionMenu-${id}`).classList.toggle('hidden');
+}
+// Close action menus on click outside
+document.addEventListener('click', () => {
+    document.querySelectorAll('[id^="actionMenu-"]').forEach(el => el.classList.add('hidden'));
+});
+
+async function deleteDemand(id) {
+    if (!confirm('Delete this demand file? This cannot be undone.')) return;
+    try {
+        await axios.delete(`/api/demands/${id}`);
+        loadDemands();
+    } catch(err) {
+        alert(err.response?.data?.detail || 'Failed to delete');
+    }
+}
+
+function changePage(delta) {
+    currentPage += delta;
+    if (currentPage < 1) currentPage = 1;
+    loadDemands();
+}
+
+function statusClass(s) {
+    s = (s || '').toLowerCase();
+    if (s === 'active') return 'bg-emerald-50 text-emerald-700';
+    if (s === 'filled') return 'bg-blue-50 text-blue-700';
+    if (s === 'processing') return 'bg-amber-50 text-amber-700';
+    if (s === 'expired' || s === 'cancelled') return 'bg-rose-50 text-rose-700';
+    return 'bg-emerald-50 text-emerald-700';
+}
+
+async function openNewModal() {
+    document.getElementById('modalTitle').textContent = 'Create New Demand File';
+    const f = document.getElementById('demandForm');
+    f.reset();
+    f.elements['id'].value = '';
+    f.elements['country'].value = 'Saudi Arabia';
+    f.elements['status'].value = 'active';
+    
+    // Fetch next file number
+    try {
+        const { data } = await axios.get('/api/demands/config/next-file-number');
+        if (data && data.next_seq) {
+            f.elements['file_number'].placeholder = `Auto (e.g. ${data.display})`;
+        }
+    } catch (e) {
+        // ignore softly
+    }
+    
+    document.getElementById('modal').classList.remove('hidden');
+    document.getElementById('modal').classList.add('flex');
+}
+function closeModal() {
+    document.getElementById('modal').classList.add('hidden');
+    document.getElementById('modal').classList.remove('flex');
+}
+
+document.getElementById('demandForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {};
+    fd.forEach((v, k) => { if (v !== '') payload[k] = v; });
+    if (payload.client_id) payload.client_id = parseInt(payload.client_id);
+    if (payload.document_count) payload.document_count = parseInt(payload.document_count);
+    try {
+        const id = payload.id;
+        if (id) {
+            delete payload.id;
+            await axios.put(`/api/demands/${id}`, payload);
+        } else {
+            delete payload.id;
+            const { data } = await axios.post('/api/demands/', payload);
+            closeModal();
+            window.location.href = `/demands/${data.id}`;
+            return;
+        }
+        closeModal();
+        loadDemands();
+    } catch (err) {
+        alert((err.response && err.response.data && err.response.data.detail) || 'Failed to save');
+    }
+});
+
+// Filter change handlers
+['searchInput'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+        clearTimeout(window._st);
+        window._st = setTimeout(() => { currentPage = 1; loadDemands(); }, 300);
+    });
+});
+['clientFilter','statusFilter','categoryFilter','embassyFilter','countryFilter','pgSize'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => { currentPage = 1; loadDemands(); });
+});
+
+// Init
+loadClients();
+loadEmbassies();
+loadCategories();
+loadDemands();
+</script>
+{% endblock %}

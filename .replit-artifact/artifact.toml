@@ -1,0 +1,22 @@
+kind = "web"
+previewPath = "/"
+title = "Dogar OEP Portal"
+version = "1.0.0"
+id = "dogar-portal-001"
+
+[[services]]
+localPort = 8000
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "bash -c 'cd /home/runner/workspace/artifacts/dogar-portal && python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload'"
+
+[services.production.build]
+args = ["echo", "no build needed"]
+
+[services.production.run]
+args = ["bash", "-c", "cd /home/runner/workspace/artifacts/dogar-portal && python3 -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2"]
+
+[services.production.run.env]
+PORT = "8000"

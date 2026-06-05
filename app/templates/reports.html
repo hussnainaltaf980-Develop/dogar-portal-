@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Reports · {{ company_name }}{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <a href="/dashboard" class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:border-brand-green hover:shadow-md transition">
+        <div class="w-12 h-12 rounded-lg bg-green-100 text-brand-green flex items-center justify-center mb-3"><i class="fa-solid fa-chart-pie text-xl"></i></div>
+        <h3 class="font-semibold text-slate-700">Recruitment Overview</h3>
+        <p class="text-xs text-slate-500 mt-1">Statistics dashboard with charts</p>
+    </a>
+    <a href="/candidates?status=processing" class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:border-brand-blue hover:shadow-md transition">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 text-brand-blue flex items-center justify-center mb-3"><i class="fa-solid fa-users-gear text-xl"></i></div>
+        <h3 class="font-semibold text-slate-700">Candidates In Progress</h3>
+        <p class="text-xs text-slate-500 mt-1">All candidates currently processing</p>
+    </a>
+    <a href="/agents" class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:border-purple-500 hover:shadow-md transition">
+        <div class="w-12 h-12 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mb-3"><i class="fa-solid fa-money-bill-wave text-xl"></i></div>
+        <h3 class="font-semibold text-slate-700">Agent Balances</h3>
+        <p class="text-xs text-slate-500 mt-1">Outstanding receivables / payables</p>
+    </a>
+    <a href="/demands" class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:border-amber-500 hover:shadow-md transition">
+        <div class="w-12 h-12 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3"><i class="fa-solid fa-file-invoice text-xl"></i></div>
+        <h3 class="font-semibold text-slate-700">Demand Files Status</h3>
+        <p class="text-xs text-slate-500 mt-1">Active and completed demands</p>
+    </a>
+    <a href="/clients" class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:border-brand-green hover:shadow-md transition">
+        <div class="w-12 h-12 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3"><i class="fa-solid fa-globe text-xl"></i></div>
+        <h3 class="font-semibold text-slate-700">Clients by Country</h3>
+        <p class="text-xs text-slate-500 mt-1">Geographic client distribution</p>
+    </a>
+    <div class="bg-gradient-to-br from-brand-green to-emerald-700 rounded-xl shadow-sm p-5 text-white">
+        <div class="w-12 h-12 rounded-lg bg-white/20 flex items-center justify-center mb-3"><i class="fa-solid fa-lightbulb text-xl"></i></div>
+        <h3 class="font-semibold">More Reports Coming Soon</h3>
+        <p class="text-xs opacity-80 mt-1">Custom reports, exports, and analytics</p>
+    </div>
+</div>
+{% endblock %}

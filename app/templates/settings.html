@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Settings · {{ company_name }}{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+
+<div class="mb-5">
+    <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+        <i class="fa-solid fa-gear text-blue-600"></i> Settings
+    </h1>
+    <p class="text-sm text-slate-500 mt-0.5">Company information and portal configuration.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="font-semibold text-slate-800 flex items-center gap-2"><i class="fa-regular fa-building text-slate-500"></i> Company Information</div>
+        <button onclick="save()" id="saveBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg">Save Changes</button>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label class="form-label">Company Name</label><input id="company_name" class="form-input"></div>
+            <div><label class="form-label">Company Name (Arabic)</label><input id="company_name_arabic" class="form-input" dir="rtl"></div>
+            <div><label class="form-label">OEP License Number</label><input id="oep_license_number" class="form-input"></div>
+            <div><label class="form-label">Owner Name</label><input id="owner_name" class="form-input"></div>
+            <div class="md:col-span-2"><label class="form-label">Address</label><textarea id="address" class="form-textarea" rows="2"></textarea></div>
+            <div class="md:col-span-2"><label class="form-label">Address (Arabic)</label><textarea id="address_arabic" class="form-textarea" rows="2" dir="rtl"></textarea></div>
+            <div><label class="form-label">Phone</label><input id="phone" class="form-input"></div>
+            <div><label class="form-label">Mobile</label><input id="mobile" class="form-input"></div>
+            <div><label class="form-label">Fax</label><input id="fax" class="form-input"></div>
+            <div><label class="form-label">Email</label><input id="email" class="form-input"></div>
+            <div><label class="form-label">Website</label><input id="website" class="form-input"></div>
+            <div><label class="form-label">Plan</label><input id="plan" class="form-input" disabled></div>
+            <div>
+                <label class="form-label">File Number Prefix</label>
+                <input id="file_prefix" class="form-input" placeholder="DTC/786/">
+                <p class="text-xs text-slate-500 mt-1">Prefix shown before the running file number. Default <code>DTC/786/</code> → renders as <code>DTC/786/8186</code>.</p>
+            </div>
+            <div>
+                <label class="form-label">Starting Point</label>
+                <input id="starting_point" type="number" class="form-input" placeholder="0">
+                <p class="text-xs text-slate-500 mt-1">Minimum starting number for the next auto-generated file. The system always uses <em>max(existing files, starting_point) + 1</em>.</p>
+            </div>
+        </div>
+        <div id="saveMsg" class="hidden mt-3 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-2">Saved.</div>
+        <div id="saveErr" class="hidden mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const FIELDS = ['company_name','company_name_arabic','oep_license_number','owner_name','address','address_arabic','phone','mobile','fax','email','website','plan','file_prefix','starting_point'];
+async function load() {
+    try {
+        const res = await axios.get('/api/settings/general');
+        const s = res.data;
+        FIELDS.forEach(f => { if (s[f] !== undefined && s[f] !== null) document.getElementById(f).value = s[f]; });
+    } catch (e) {/* ignore */}
+}
+async function save() {
+    const payload = {};
+    FIELDS.forEach(f => payload[f] = document.getElementById(f).value);
+    payload.starting_point = parseInt(payload.starting_point) || 1000;
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+        await axios.put('/api/settings/general', payload);
+        const m = document.getElementById('saveMsg'); m.classList.remove('hidden');
+        setTimeout(() => m.classList.add('hidden'), 2500);
+    } catch (e) {
+        const m = document.getElementById('saveErr');
+        m.textContent = e.response?.data?.detail || 'Failed to save';
+        m.classList.remove('hidden');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Save Changes';
+    }
+}
+load();
+</script>
+{% endblock %}

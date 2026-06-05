@@ -1,0 +1,24 @@
+-- ======================================================================
+-- Dogar Trading Corporation — Legacy Data Backup
+-- ======================================================================
+-- This file is consumed by `app/db/init_db.py::seed_legacy_agents()`
+-- during first startup to import historical `agents` and `agents_cash`
+-- rows from the previous PHP/MySQL system.
+--
+-- IMPORTANT — DATA PRIVACY
+-- The original production export contained personally identifiable
+-- information (agent names, phone numbers, balances). It has been
+-- intentionally OMITTED from the public release.
+--
+-- To restore your own data, replace the body of this file with the
+-- SQL dump produced by your legacy system. Expected line format:
+--
+--     INSERT INTO agents VALUES (id, code, name, phone, address, ...);
+--     INSERT INTO agents_cash VALUES (id, agent_id, amount, ...);
+--
+-- The seeder tolerates missing files and missing columns — if you do
+-- not have a legacy backup, leave this file empty and the seeder will
+-- log a one-line warning and continue.
+-- ======================================================================
+
+-- (intentionally empty — populate with your own legacy data)

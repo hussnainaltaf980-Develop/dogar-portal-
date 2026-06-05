@@ -1,0 +1,1609 @@
+{% extends "base.html" %}
+{% block title %}Customize Document · {{ company_name }}{% endblock %}
+{% block content %}
+{# =====================================================================
+   WYSIWYG TEMPLATE DESIGNER
+   ─────────────────────────────────────────────────────────────────────
+   Three-column layout that mirrors demo.oep.com.pk:
+
+     ┌─────────────────────────────────────────────────────────────┐
+     │  TOP METADATA BAR  (Name · Description · Category · Attach  │
+     │  · Status · Letterhead toggle · Depositor toggle)           │
+     ├──────────┬──────────────────────────────────┬───────────────┤
+     │          │  ▶ Page tabs   A4 ▼   Zoom       │               │
+     │ PALETTE  ├──────────────────────────────────┤  PROPERTIES   │
+     │          │                                  │               │
+     │ (group   │      [ Canvas with bg image +    │  (per-field   │
+     │  cards   │        absolutely-positioned     │   inspector)  │
+     │  with    │        draggable field markers ] │               │
+     │  search) │                                  │               │
+     │          │                                  │               │
+     └──────────┴──────────────────────────────────┴───────────────┘
+
+   Coordinate system:
+     - Stored   : PDF points, origin = bottom-left.   y_pt = 0 at the
+                  bottom of the page, y_pt = page_height at the top.
+     - Canvas   : CSS pixels, origin = top-left.
+     - Mapping  : cssX = x * scale
+                  cssY = (page_h - y - height) * scale
+                  Inverted on drag to convert mouse → PDF coords.
+   ===================================================================== #}
+
+<div class="text-[13px]">
+
+<!-- ──────────────── BREADCRUMB / BACK ──────────────── -->
+<div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
+    <div class="flex items-center gap-2">
+        <a href="/documents" class="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1">
+            <i class="fa-solid fa-arrow-left"></i> Back to Documents
+        </a>
+        <span class="text-slate-300">/</span>
+        <span class="text-xs font-semibold text-slate-700">Customize Document</span>
+        <span id="dirtyBadge" class="hidden ml-2 text-[10px] uppercase tracking-wide font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+            <i class="fa-solid fa-circle text-[6px] align-middle"></i> Unsaved
+        </span>
+    </div>
+    <div class="flex items-center gap-2">
+        <button id="btnCancel"  type="button" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-md">
+            <i class="fa-solid fa-xmark mr-1"></i> Cancel
+        </button>
+        <button id="btnSave" type="button" class="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50">
+            <i class="fa-solid fa-floppy-disk mr-1"></i> Save
+        </button>
+    </div>
+</div>
+
+<!-- ──────────────── TOP METADATA BAR ──────────────── -->
+<div class="bg-white border border-slate-200 rounded-xl shadow-sm p-4 mb-3">
+    <div class="grid grid-cols-12 gap-3">
+        <!-- Name -->
+        <label class="col-span-12 md:col-span-3">
+            <span class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Name</span>
+            <input id="metaName" type="text" class="mt-1 w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none">
+        </label>
+        <!-- Description -->
+        <label class="col-span-12 md:col-span-3">
+            <span class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Description</span>
+            <input id="metaDescription" type="text" class="mt-1 w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none">
+        </label>
+        <!-- Category -->
+        <label class="col-span-6 md:col-span-2">
+            <span class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Category</span>
+            <select id="metaCategory" class="mt-1 w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none bg-white">
+                <option value="Protector Documents">Protector Documents</option>
+                <option value="Visa Process">Visa Process</option>
+                <option value="bank">Bank</option>
+                <option value="custom">Custom</option>
+            </select>
+        </label>
+        <!-- Attach to (data_source) -->
+        <label class="col-span-6 md:col-span-2">
+            <span class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Attach to</span>
+            <select id="metaDataSource" class="mt-1 w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none bg-white">
+                <option value="candidate">Candidate</option>
+                <option value="demand">Demand File</option>
+                <option value="client">Client / Sponsor</option>
+                <option value="agent">Sub-Agent</option>
+            </select>
+        </label>
+        <!-- Status -->
+        <label class="col-span-6 md:col-span-2">
+            <span class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Status</span>
+            <select id="metaStatus" class="mt-1 w-full px-2.5 py-1.5 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none bg-white">
+                <option value="1">Enabled</option>
+                <option value="0">Disabled</option>
+            </select>
+        </label>
+    </div>
+
+    <!-- Toggles + Tabs -->
+    <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-5 flex-wrap text-xs">
+            <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input id="metaLetterhead" type="checkbox" class="sr-only peer">
+                <span class="relative w-9 h-5 bg-slate-300 rounded-full peer-checked:bg-blue-600 transition">
+                    <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition peer-checked:translate-x-4"></span>
+                </span>
+                <span class="text-slate-700">Use letterhead when printing <span class="text-slate-400">(aligned with fields)</span></span>
+            </label>
+            <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input id="metaDepositor" type="checkbox" class="sr-only peer">
+                <span class="relative w-9 h-5 bg-slate-300 rounded-full peer-checked:bg-blue-600 transition">
+                    <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition peer-checked:translate-x-4"></span>
+                </span>
+                <span class="text-slate-700">Requires depositor <span class="text-slate-400">(show depositor selector when printing)</span></span>
+            </label>
+        </div>
+        <!-- Section tabs -->
+        <div class="inline-flex items-center bg-slate-100 rounded-lg p-1 text-xs font-semibold">
+            <button id="tabContent" class="px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900">
+                <i class="fa-regular fa-file-lines mr-1"></i> Content
+            </button>
+            <button id="tabDesigner" class="px-3 py-1.5 rounded-md bg-white shadow text-blue-700">
+                <i class="fa-solid fa-object-group mr-1"></i> Template Designer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ──────────────── CONTENT TAB (lightweight) ──────────────── -->
+<div id="paneContent" class="hidden bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+    <h2 class="text-sm font-bold text-slate-800 mb-2">Content</h2>
+    <p class="text-xs text-slate-500 leading-relaxed">
+        This template uses the <b>Template Designer</b> tab — every visible
+        element on the printed document is a draggable field on the
+        background image. Switch to the <b>Template Designer</b> tab to
+        position fields.
+    </p>
+    <div class="mt-4">
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Free-form notes (printed at the bottom of the document)</label>
+        <textarea id="metaContentNotes" rows="6" class="w-full text-sm border border-slate-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none"></textarea>
+    </div>
+</div>
+
+<!-- ──────────────── DESIGNER TAB — main 3-column layout ──────────────── -->
+<div id="paneDesigner" class="grid grid-cols-12 gap-3">
+
+    <!-- ============ LEFT: Field palette ============ -->
+    <aside class="col-span-12 lg:col-span-3">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col" style="max-height: calc(100vh - 220px); min-height: 540px;">
+            <!-- Search + header -->
+            <div class="p-3 border-b border-slate-100">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Field Palette</h3>
+                    <button id="btnExpandAll" type="button" class="text-[10px] text-blue-600 hover:underline">Expand all</button>
+                </div>
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2 text-slate-400 text-xs"></i>
+                    <input id="paletteSearch" type="text" placeholder="Search fields..." class="w-full pl-7 pr-2 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none">
+                </div>
+            </div>
+            <!-- Insert primitives -->
+            <div class="px-3 py-2 border-b border-slate-100 bg-slate-50">
+                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Insert</div>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button class="insert-btn" data-insert="text"     title="Insert a free-form text box">
+                        <i class="fa-regular fa-square mr-1"></i> Text box
+                    </button>
+                    <button class="insert-btn" data-insert="checkbox" title="Insert a checkbox">
+                        <i class="fa-regular fa-square-check mr-1"></i> Checkbox
+                    </button>
+                    <button class="insert-btn" data-insert="barcode"  title="Insert a barcode">
+                        <i class="fa-solid fa-barcode mr-1"></i> Barcode
+                    </button>
+                    <button class="insert-btn" data-insert="trade_table" title="Insert a trade table">
+                        <i class="fa-solid fa-table mr-1"></i> Trade table
+                    </button>
+                </div>
+                <div class="mt-2 flex gap-1.5">
+                    <input id="customTextInput" type="text" placeholder="Custom text (Enter to add)…" class="flex-1 px-2 py-1 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none">
+                    <button id="btnAddCustom" class="px-2 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md">Add</button>
+                </div>
+            </div>
+            <!-- Grouped field list -->
+            <div id="paletteList" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <div class="text-center text-xs text-slate-400 py-8">
+                    <i class="fa-solid fa-spinner fa-spin mr-1"></i> Loading fields…
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ============ CENTER: Canvas ============ -->
+    <main class="col-span-12 lg:col-span-6">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col" style="min-height: 540px;">
+            <!-- Canvas toolbar -->
+            <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                <!-- Page tabs -->
+                <div id="pageTabs" class="inline-flex items-center gap-1"></div>
+                <!-- Background, A4 indicator, zoom -->
+                <div class="flex items-center gap-2 text-xs">
+                    <label class="inline-flex items-center gap-1.5">
+                        <span class="text-slate-500">Background</span>
+                        <select id="bgSelect" class="px-2 py-1 text-xs border border-slate-300 rounded-md bg-white max-w-[180px] truncate">
+                            <option value="">— None —</option>
+                        </select>
+                    </label>
+                    <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">A4</span>
+                    <div class="inline-flex items-center gap-1">
+                        <button id="zoomOut" class="px-1.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded">−</button>
+                        <span id="zoomLabel" class="text-xs font-semibold text-slate-700 min-w-[3rem] text-center">75%</span>
+                        <button id="zoomIn" class="px-1.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded">+</button>
+                        <button id="zoomFit" class="px-1.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded" title="Fit width">Fit</button>
+                    </div>
+                </div>
+            </div>
+            <!-- v9 NEW: Live Data Preview bar — pick a candidate, see real data fill the canvas in real time, then click Print to render the overlay -->
+            <div class="px-3 py-2 border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-indigo-50 flex items-center gap-2 flex-wrap">
+                <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider"><i class="fa-solid fa-bolt"></i> Live data preview</span>
+                <div class="relative flex-1 min-w-[200px] max-w-[360px]">
+                    <input id="previewSearchInput" type="text" placeholder="Search candidate by name / passport / file #…" class="w-full pl-7 pr-2 py-1 text-xs border border-emerald-300 rounded-md focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500 outline-none bg-white">
+                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1.5 text-emerald-500 text-xs"></i>
+                    <div id="previewSearchResults" class="hidden absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-emerald-200 rounded-md shadow-lg max-h-60 overflow-y-auto"></div>
+                </div>
+                <span id="previewActiveLabel" class="text-[11px] text-slate-500"></span>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer ml-auto">
+                    <input id="previewModeToggle" type="checkbox" class="sr-only peer">
+                    <span class="relative w-9 h-5 bg-slate-300 rounded-full peer-checked:bg-emerald-600 transition">
+                        <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition peer-checked:translate-x-4"></span>
+                    </span>
+                    <span class="text-[11px] text-slate-700">Preview data on canvas</span>
+                </label>
+                <button id="btnPrintPreview" type="button" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md disabled:opacity-50" title="Open the print preview with the selected candidate's real data">
+                    <i class="fa-solid fa-print"></i> Print preview
+                </button>
+                <button id="btnOpenInCandidate" type="button" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md disabled:opacity-50" title="Open this candidate's Documents tab">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Open candidate
+                </button>
+            </div>
+            <!-- Canvas viewport -->
+            <div id="canvasViewport" class="flex-1 overflow-auto bg-slate-200 p-6" style="min-height: 480px;">
+                <div id="canvasOuter" class="relative mx-auto" style="width: 595px;">
+                    <div id="canvas" class="relative bg-white shadow-xl select-none" style="width:595px;height:842px;">
+                        <img id="bgImg" alt="" class="absolute inset-0 w-full h-full pointer-events-none" style="object-fit: fill; display:none;">
+                        <div id="canvasEmpty" class="absolute inset-0 flex items-center justify-center text-slate-300 text-sm pointer-events-none">
+                            <div class="text-center">
+                                <i class="fa-regular fa-image text-4xl block mb-2"></i>
+                                Select a background to begin
+                            </div>
+                        </div>
+                        <!-- field markers rendered here -->
+                    </div>
+                </div>
+            </div>
+            <!-- Canvas footer -->
+            <div class="px-3 py-1.5 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+                <span id="canvasStatus">Drag fields from the palette onto the page</span>
+                <span id="cursorCoords" class="font-mono">x: — · y: —</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- ============ RIGHT: Properties panel ============ -->
+    <aside class="col-span-12 lg:col-span-3">
+        <div class="bg-white border border-slate-200 rounded-xl shadow-sm" style="max-height: calc(100vh - 220px); overflow-y: auto; min-height: 540px;">
+            <div class="px-3 py-2 border-b border-slate-100">
+                <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Properties</h3>
+            </div>
+            <div id="propsEmpty" class="p-6 text-center text-xs text-slate-400">
+                <i class="fa-regular fa-hand-pointer text-3xl block mb-2 text-slate-300"></i>
+                Select a field on the canvas to edit its properties
+            </div>
+            <div id="propsForm" class="hidden p-3 space-y-3 text-xs">
+                <!-- Identity -->
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Label</label>
+                    <input data-prop="label" type="text" class="prop-input">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Field Key</label>
+                    <input data-prop="field_key" type="text" class="prop-input font-mono text-[11px]">
+                    <div class="text-[10px] text-slate-400 mt-0.5">Database column name. Use a key from the palette or a system token like <code>__today__</code>.</div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Type</label>
+                    <select data-prop="field_type" class="prop-input">
+                        <option value="text">Text</option>
+                        <option value="static">Static text</option>
+                        <option value="date">Date</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="char_cells">Character cells (CNIC / passport)</option>
+                        <option value="photo">Photo</option>
+                        <option value="barcode">Barcode</option>
+                        <option value="arabic">Arabic (RTL)</option>
+                        <option value="trade_table">Trade table</option>
+                    </select>
+                </div>
+                <div id="rowStatic" class="hidden">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Static value</label>
+                    <textarea data-prop="static_value" rows="2" class="prop-input"></textarea>
+                </div>
+
+                <!-- Geometry -->
+                <div class="pt-2 border-t border-slate-100">
+                    <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Position &amp; size (PDF points)</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label>
+                            <span class="block text-[10px] text-slate-500">X</span>
+                            <input data-prop="x"      type="number" step="0.5" class="prop-input">
+                        </label>
+                        <label>
+                            <span class="block text-[10px] text-slate-500">Y <span class="text-[9px] text-slate-400">(bottom)</span></span>
+                            <input data-prop="y"      type="number" step="0.5" class="prop-input">
+                        </label>
+                        <label>
+                            <span class="block text-[10px] text-slate-500">Width</span>
+                            <input data-prop="width"  type="number" step="1"   class="prop-input">
+                        </label>
+                        <label>
+                            <span class="block text-[10px] text-slate-500">Height</span>
+                            <input data-prop="height" type="number" step="1"   class="prop-input">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Typography -->
+                <div class="pt-2 border-t border-slate-100">
+                    <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Typography</div>
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <label>
+                            <span class="block text-[10px] text-slate-500">Font size (pt)</span>
+                            <input data-prop="font_size" type="number" step="0.5" class="prop-input">
+                        </label>
+                        <label>
+                            <span class="block text-[10px] text-slate-500">Color</span>
+                            <input data-prop="color" type="color" class="prop-input h-7 p-0.5">
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label>
+                            <span class="block text-[10px] text-slate-500">Align</span>
+                            <select data-prop="align" class="prop-input">
+                                <option value="left">Left</option>
+                                <option value="center">Center</option>
+                                <option value="right">Right</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span class="block text-[10px] text-slate-500">Page</span>
+                            <input data-prop="page" type="number" min="1" step="1" class="prop-input">
+                        </label>
+                    </div>
+                    <div class="mt-2 flex items-center gap-3 text-[11px] text-slate-700">
+                        <label class="inline-flex items-center gap-1"><input data-prop="font_bold"   type="checkbox"> <b>B</b></label>
+                        <label class="inline-flex items-center gap-1"><input data-prop="font_italic" type="checkbox"> <i>I</i></label>
+                    </div>
+                </div>
+
+                <!-- Meta (char_cells, photo, barcode, trade_table) -->
+                <div id="metaWrap" class="pt-2 border-t border-slate-100 hidden">
+                    <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Type-specific</div>
+                    <!-- char_cells -->
+                    <div id="metaCells" class="hidden grid grid-cols-2 gap-2">
+                        <label><span class="block text-[10px] text-slate-500">Cell count</span><input data-meta="cell_count" type="number" min="1" class="prop-input"></label>
+                        <label><span class="block text-[10px] text-slate-500">Cell width</span><input data-meta="cell_width" type="number" step="0.5" class="prop-input"></label>
+                        <label><span class="block text-[10px] text-slate-500">Cell gap</span><input data-meta="cell_gap" type="number" step="0.5" class="prop-input"></label>
+                        <label><span class="block text-[10px] text-slate-500">Format</span>
+                            <select data-meta="format" class="prop-input">
+                                <option value="">— none —</option>
+                                <option value="digits">digits only</option>
+                                <option value="alnum">alphanumeric</option>
+                                <option value="ddmmyyyy">date → DDMMYYYY</option>
+                            </select>
+                        </label>
+                        <label class="col-span-2 inline-flex items-center gap-1 text-[11px] text-slate-700">
+                            <input data-meta="draw_boxes" type="checkbox"> Draw cell boxes (debug)
+                        </label>
+                    </div>
+                    <!-- photo -->
+                    <div id="metaPhoto" class="hidden grid grid-cols-2 gap-2">
+                        <label><span class="block text-[10px] text-slate-500">Fit</span>
+                            <select data-meta="fit" class="prop-input">
+                                <option value="cover">Cover</option>
+                                <option value="contain">Contain</option>
+                                <option value="fill">Fill</option>
+                            </select>
+                        </label>
+                        <label class="inline-flex items-center gap-1 text-[11px] text-slate-700 mt-4">
+                            <input data-meta="border" type="checkbox"> Border
+                        </label>
+                    </div>
+                    <!-- trade_table -->
+                    <div id="metaTrade" class="hidden grid grid-cols-2 gap-2">
+                        <label class="col-span-2">
+                            <span class="block text-[10px] text-slate-500">Columns (comma-separated keys)</span>
+                            <input data-meta="columns" type="text" class="prop-input font-mono text-[11px]"
+                                   placeholder="_sr,trade,quantity,_assigned,_available,salary,contract_period">
+                            <span class="block text-[9px] text-slate-400 mt-0.5 leading-snug">
+                                Built-in keys: <code>_sr</code>, <code>_assigned</code>, <code>_available</code> +
+                                JobCategory fields (<code>trade</code>, <code>quantity</code>, <code>salary</code>,
+                                <code>contract_period</code>). Leave blank to use the default OEP set.
+                            </span>
+                        </label>
+                        <label><span class="block text-[10px] text-slate-500">Row height (pt)</span>
+                            <input data-meta="row_height" type="number" step="0.5" min="8" class="prop-input" placeholder="18"></label>
+                        <label><span class="block text-[10px] text-slate-500">Padding-X (pt)</span>
+                            <input data-meta="padding_x" type="number" step="0.5" min="0" class="prop-input" placeholder="3"></label>
+                        <label><span class="block text-[10px] text-slate-500">Max rows (0 = all)</span>
+                            <input data-meta="max_rows" type="number" min="0" class="prop-input" placeholder="0"></label>
+                        <label><span class="block text-[10px] text-slate-500">Header fill</span>
+                            <input data-meta="header_fill" type="color" class="prop-input h-7 p-0" value="#e5e7eb"></label>
+                        <label class="inline-flex items-center gap-1 text-[11px] text-slate-700 mt-4">
+                            <input data-meta="show_header" type="checkbox"> Show header
+                        </label>
+                        <label class="inline-flex items-center gap-1 text-[11px] text-slate-700 mt-4">
+                            <input data-meta="border" type="checkbox"> Cell borders
+                        </label>
+                        <label class="inline-flex items-center gap-1 text-[11px] text-slate-700 mt-1 col-span-2">
+                            <input data-meta="zebra" type="checkbox"> Zebra-stripe alternate rows
+                        </label>
+                    </div>
+                    <!-- barcode -->
+                    <div id="metaBarcode" class="hidden grid grid-cols-2 gap-2">
+                        <label class="col-span-2">
+                            <span class="block text-[10px] text-slate-500">Barcode content</span>
+                            <textarea data-meta="barcode_content" rows="2" class="prop-input font-mono text-[11px]"
+                                      placeholder="{{visa_number}}"></textarea>
+                            <span class="block text-[9px] text-slate-400 mt-0.5 leading-snug">
+                                Combine merge fields and text, e.g. <code>{{passport_no}}-{{cnic_no}}</code>,
+                                <code>E{{e_number}}</code> or <code>FILE-{{file_number}}</code>.
+                                Each <code>{{key}}</code> is replaced at print time.
+                            </span>
+                        </label>
+                        <label><span class="block text-[10px] text-slate-500">Bar height (pt)</span>
+                            <input data-meta="bar_height" type="number" step="1" min="8" class="prop-input" placeholder="26"></label>
+                        <label><span class="block text-[10px] text-slate-500">Bar width (pt)</span>
+                            <input data-meta="bar_width" type="number" step="0.1" min="0.3" class="prop-input" placeholder="auto"></label>
+                        <label><span class="block text-[10px] text-slate-500">Caption font</span>
+                            <input data-meta="caption_font_size" type="number" step="1" min="5" class="prop-input" placeholder="8"></label>
+                        <label><span class="block text-[10px] text-slate-500">Symbology</span>
+                            <select data-meta="symbology" class="prop-input">
+                                <option value="code128">Code 128</option>
+                                <option value="code39">Code 39</option>
+                                <option value="ean13">EAN-13</option>
+                            </select>
+                        </label>
+                        <label class="col-span-2 inline-flex items-center gap-1 text-[11px] text-slate-700">
+                            <input data-meta="show_text" type="checkbox"> Show human-readable text
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Footer actions -->
+                <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <button id="propDuplicate" class="text-[11px] text-slate-600 hover:text-blue-600">
+                        <i class="fa-regular fa-clone mr-1"></i> Duplicate
+                    </button>
+                    <button id="propDelete" class="text-[11px] text-rose-600 hover:bg-rose-50 px-2 py-1 rounded">
+                        <i class="fa-regular fa-trash-can mr-1"></i> Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+</div>{# /paneDesigner #}
+
+</div>{# /text-[13px] #}
+
+<style>
+/* ─────────────── designer-local styles ─────────────── */
+.insert-btn{
+    @apply text-[11px] font-semibold text-slate-700 bg-white hover:bg-blue-50 hover:text-blue-700 border border-slate-200 rounded-md px-2 py-1.5 text-left transition;
+}
+.prop-input{
+    @apply w-full px-2 py-1 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none bg-white;
+}
+.palette-group-head{
+    @apply w-full flex items-center justify-between px-2 py-1.5 text-[11px] font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-md cursor-pointer select-none;
+}
+.palette-field{
+    @apply flex items-center gap-1.5 px-2 py-1 text-[11px] text-slate-700 hover:bg-blue-50 hover:text-blue-700 rounded-md cursor-grab transition;
+}
+.palette-field:active{ cursor: grabbing; }
+.palette-field.placed{
+    @apply text-emerald-700 bg-emerald-50 hover:bg-emerald-100;
+}
+.palette-field .field-key{
+    @apply font-mono text-[10px] text-slate-400 ml-auto;
+}
+.palette-field.placed .field-key{ @apply text-emerald-500; }
+
+/* Canvas */
+#canvas{ transform-origin: top left; }
+.field-marker{
+    position: absolute;
+    box-sizing: border-box;
+    border: 1px dashed transparent;
+    background: transparent;
+    color: #0f172a;
+    font-family: Arial, Helvetica, sans-serif;
+    line-height: 1.05;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: move;
+    user-select: none;
+    padding: 0;
+}
+.field-marker:hover{
+    border-color: #93c5fd;
+    background: rgba(59,130,246,0.04);
+}
+.field-marker.selected{
+    border-color: #2563eb !important;
+    background: rgba(37,99,235,0.08);
+    box-shadow: 0 0 0 1px #2563eb, 0 4px 12px rgba(37,99,235,0.18);
+    z-index: 50;
+}
+.field-marker .marker-handle{
+    position: absolute;
+    right: -4px; bottom: -4px;
+    width: 9px; height: 9px;
+    background: #2563eb;
+    border: 1px solid white;
+    border-radius: 2px;
+    cursor: nwse-resize;
+    display: none;
+}
+.field-marker.selected .marker-handle{ display: block; }
+.field-marker .marker-tag{
+    position: absolute;
+    top: -16px; left: -1px;
+    font-size: 9px;
+    background: #2563eb;
+    color: white;
+    padding: 1px 5px;
+    border-radius: 3px 3px 0 0;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    white-space: nowrap;
+    display: none;
+}
+.field-marker.selected .marker-tag{ display: block; }
+.field-marker.type-arabic{ direction: rtl; text-align: right; font-family: 'Noto Sans Arabic', 'Tahoma', sans-serif; }
+.field-marker.type-checkbox{
+    border: 1px solid #475569;
+    background: white;
+    text-align: center;
+    color: #0f172a;
+    font-weight: 700;
+}
+.field-marker.type-photo{
+    background: repeating-linear-gradient(45deg, #f1f5f9 0 6px, #e2e8f0 6px 12px);
+    border: 1px solid #94a3b8;
+    text-align: center;
+    color: #64748b;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.field-marker.type-barcode{
+    background:
+        linear-gradient(transparent 0 70%, #fff 70% 100%),
+        repeating-linear-gradient(90deg, #111 0 1.5px, transparent 1.5px 3.5px);
+    border: 1px solid #475569;
+    color: #0f172a;
+    font-size: 8px;
+    font-family: ui-monospace, 'Courier New', monospace;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    text-align: center;
+    line-height: 1;
+    padding-bottom: 1px;
+    overflow: hidden;
+}
+.field-marker.type-barcode .marker-body{
+    background: #fff;
+    padding: 0 2px;
+    border-radius: 2px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.field-marker.type-trade_table{
+    background: rgba(14,165,233,0.06);
+    border: 1px solid #0ea5e9;
+    color: #0369a1;
+    font-size: 10px;
+}
+
+.page-tab{
+    @apply px-3 py-1 text-xs font-semibold text-slate-600 hover:text-blue-600 rounded-md cursor-pointer transition;
+}
+.page-tab.active{
+    @apply bg-blue-600 text-white shadow;
+}
+.page-tab .closeP{ @apply ml-1 text-[10px] opacity-60 hover:opacity-100; }
+
+/* Drop-zone highlight */
+#canvas.drag-over{
+    outline: 2px dashed #2563eb;
+    outline-offset: -4px;
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   TEMPLATE DESIGNER — main JS
+   ─────────────────────────────────────────────────────────────────────
+   State model:
+     STATE.template  ··  template metadata (name, category, ...)
+     STATE.fields[]  ··  every field row currently on the canvas. Each
+                         entry mirrors the DocumentField shape on the
+                         server, plus a transient `_uid` for the DOM.
+     STATE.deletedIds[]  ··  IDs of fields the user removed, sent to
+                         the bulk-save endpoint so the server can drop
+                         them.
+     STATE.selected  ··  _uid of the currently-selected field (or null)
+     STATE.zoom      ··  current zoom 0.25 … 2.0
+     STATE.page      ··  active page number
+   ════════════════════════════════════════════════════════════════════ */
+
+const TPL_ID = {{ tpl_id }};
+
+const STATE = {
+    template: null,
+    fields: [],
+    deletedIds: [],
+    selected: null,
+    zoom: 0.75,
+    page: 1,
+    pages: [1],
+    palette: { groups: [], flat: [] },
+    backgrounds: [],
+    dirty: false,
+};
+
+const PT_TO_CSS = 1;                  // 1 PDF point = 1 CSS px at zoom 1.0
+let UID_COUNTER = 1;
+const newUid = () => `f${UID_COUNTER++}`;
+
+/* ─────────────── helpers ─────────────── */
+function pageW(){ return parseFloat(STATE.template?.page_width)  || 595; }
+function pageH(){ return parseFloat(STATE.template?.page_height) || 842; }
+function $(sel, root=document){ return root.querySelector(sel); }
+function $$(sel, root=document){ return [...root.querySelectorAll(sel)]; }
+
+function markDirty(d=true){
+    STATE.dirty = d;
+    $('#dirtyBadge').classList.toggle('hidden', !d);
+}
+
+window.addEventListener('beforeunload', e => {
+    if (STATE.dirty){ e.preventDefault(); e.returnValue=''; }
+});
+
+/* PDF (origin bottom-left) → CSS (origin top-left). All inputs are in
+ * PDF points; outputs are CSS px BEFORE zoom (applied via transform). */
+function ptToCssLeft(x_pt){ return x_pt * PT_TO_CSS; }
+function ptToCssTop(y_pt, h_pt){ return (pageH() - y_pt - h_pt) * PT_TO_CSS; }
+function cssLeftToPt(left_css){ return left_css / PT_TO_CSS; }
+function cssTopToPt(top_css, h_pt){ return pageH() - (top_css / PT_TO_CSS) - h_pt; }
+
+/* ═══════════════ BOOTSTRAP ═══════════════ */
+async function bootstrap(){
+    bindStaticHandlers();
+    try {
+        await loadTemplate();        // template + fields
+        await loadPalette();         // grouped palette
+        await loadBackgrounds();     // background <select>
+        renderAll();
+    } catch (err) {
+        console.error(err);
+        alert('Failed to load template: ' + (err.response?.data?.detail || err.message));
+    }
+}
+
+async function loadTemplate(){
+    const { data } = await axios.get(`/api/documents/templates/${TPL_ID}`);
+    STATE.template = data;
+    STATE.fields = (data.fields || []).map(f => ({...f, _uid: newUid()}));
+    // Populate metadata bar
+    $('#metaName').value           = data.name || '';
+    $('#metaDescription').value    = data.description || '';
+    $('#metaCategory').value       = data.category || 'custom';
+    $('#metaDataSource').value     = data.data_source || 'candidate';
+    $('#metaStatus').value         = data.is_active ? '1' : '0';
+    // Toggles are persisted in description meta-fence — read them out.
+    const md = parseMetaFromDescription(data.description || '');
+    $('#metaLetterhead').checked   = !!md.letterhead;
+    $('#metaDepositor').checked    = !!md.depositor;
+    $('#metaContentNotes').value   = md.notes || '';
+    // Recompute pages list
+    const pgs = new Set([1]);
+    for (const f of STATE.fields) pgs.add(parseInt(f.page) || 1);
+    STATE.pages = [...pgs].sort((a,b)=>a-b);
+    STATE.page  = STATE.pages[0];
+}
+
+async function loadPalette(){
+    const ds = $('#metaDataSource').value || 'candidate';
+    const { data } = await axios.get(`/api/documents/designer/palette`, { params: { data_source: ds } });
+    STATE.palette = data;
+}
+
+async function loadBackgrounds(){
+    try {
+        const { data } = await axios.get('/api/documents/designer/backgrounds');
+        STATE.backgrounds = data;
+    } catch (e) {
+        STATE.backgrounds = [];
+    }
+    const sel = $('#bgSelect');
+    sel.innerHTML = '<option value="">— None —</option>' + STATE.backgrounds.map(b =>
+        `<option value="${b.filename}" ${b.filename === STATE.template.background_image ? 'selected':''}>${b.filename}</option>`
+    ).join('');
+}
+
+/* ═══════════════ RENDER ═══════════════ */
+function renderAll(){
+    renderPaletteList();
+    renderPageTabs();
+    renderBackground();
+    renderCanvasSize();
+    renderFields();
+    renderPropertiesPanel();
+    renderStatus();
+}
+
+function renderStatus(){
+    const tot = STATE.fields.length;
+    const onPage = STATE.fields.filter(f => (parseInt(f.page)||1) === STATE.page).length;
+    $('#canvasStatus').textContent = `${onPage} field${onPage===1?'':'s'} on page ${STATE.page} · ${tot} total`;
+}
+
+/* ── Palette ── */
+function renderPaletteList(){
+    const q = ($('#paletteSearch').value || '').trim().toLowerCase();
+    const placedKeys = new Set(STATE.fields.map(f => f.field_key));
+    const groups = STATE.palette.groups || [];
+    const container = $('#paletteList');
+    if (!groups.length){
+        container.innerHTML = '<div class="text-center text-xs text-slate-400 py-8">No fields available for this data source.</div>';
+        return;
+    }
+    container.innerHTML = groups.map((g, gi) => {
+        const matches = (g.fields || []).filter(f =>
+            !q || f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q)
+        );
+        if (q && matches.length === 0) return '';
+        const collapsed = q ? false : (gi > 2);  // first three groups open by default when not searching
+        return `
+        <div class="palette-group" data-group="${escapeAttr(g.group)}">
+            <button type="button" class="palette-group-head" data-action="toggle-group">
+                <span><i class="fa-solid fa-chevron-${collapsed ? 'right':'down'} text-[9px] mr-1"></i> ${escapeHtml(g.group)} <span class="text-slate-400 font-normal ml-1">(${matches.length})</span></span>
+                <i class="fa-solid fa-grip-vertical text-slate-300 text-[10px]"></i>
+            </button>
+            <div class="palette-group-body mt-0.5 mb-1.5 ${collapsed?'hidden':''}">
+                ${matches.map(f => `
+                    <div class="palette-field ${placedKeys.has(f.key)?'placed':''}"
+                         draggable="true"
+                         data-key="${escapeAttr(f.key)}"
+                         data-label="${escapeAttr(f.label)}"
+                         data-ftype="${escapeAttr(f.field_type)}"
+                         title="${escapeAttr(f.key)}">
+                        <i class="${iconForType(f.field_type)} w-3 text-center text-slate-400"></i>
+                        <span class="truncate flex-1">${escapeHtml(f.label)}</span>
+                        ${placedKeys.has(f.key) ? '<i class="fa-solid fa-check text-[9px] text-emerald-500 ml-auto"></i>' : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>`;
+    }).join('');
+    bindPaletteHandlers();
+}
+
+function iconForType(t){
+    return ({
+        text:        'fa-regular fa-keyboard',
+        static:      'fa-regular fa-comment-dots',
+        date:        'fa-regular fa-calendar',
+        checkbox:    'fa-regular fa-square-check',
+        char_cells:  'fa-solid fa-grip-lines-vertical',
+        photo:       'fa-regular fa-image',
+        barcode:     'fa-solid fa-barcode',
+        arabic:      'fa-solid fa-language',
+        trade_table: 'fa-solid fa-table',
+    })[t] || 'fa-regular fa-circle';
+}
+
+/* ── Page tabs ── */
+function renderPageTabs(){
+    const tabs = STATE.pages.map(p =>
+        `<button class="page-tab ${p===STATE.page?'active':''}" data-page="${p}">
+            Page ${p}
+            ${STATE.pages.length>1 && p===STATE.page ? `<span class="closeP" data-action="del-page" data-page="${p}">×</span>` : ''}
+        </button>`
+    ).join('');
+    $('#pageTabs').innerHTML =
+        tabs +
+        `<button class="page-tab text-slate-400 hover:text-blue-600" data-action="add-page" title="Add page"><i class="fa-solid fa-plus"></i></button>`;
+    $('#pageTabs').onclick = (ev) => {
+        const t = ev.target.closest('[data-page], [data-action]');
+        if (!t) return;
+        if (t.dataset.action === 'add-page'){
+            const next = (Math.max(...STATE.pages) || 0) + 1;
+            STATE.pages.push(next); STATE.page = next;
+            renderPageTabs(); renderFields(); renderStatus();
+            return;
+        }
+        if (t.dataset.action === 'del-page'){
+            ev.stopPropagation();
+            const pg = parseInt(t.dataset.page);
+            if (STATE.pages.length<=1) return;
+            // Move fields off the deleted page to page 1
+            STATE.fields.forEach(f => { if ((parseInt(f.page)||1)===pg) f.page = 1; });
+            STATE.pages = STATE.pages.filter(p => p !== pg);
+            STATE.page = STATE.pages[0];
+            markDirty();
+            renderPageTabs(); renderFields(); renderStatus();
+            return;
+        }
+        const pg = parseInt(t.dataset.page);
+        if (pg && pg !== STATE.page){ STATE.page = pg; renderPageTabs(); renderFields(); renderStatus(); }
+    };
+}
+
+/* ── Background + canvas size ── */
+function renderBackground(){
+    const img  = $('#bgImg');
+    const empty = $('#canvasEmpty');
+    const bg = (STATE.template?.background_image || '').trim();
+    if (bg){
+        // Tolerate three forms in the DB:
+        //   1) bare filename            → 'saudi_visa_application.jpg'
+        //   2) absolute static path     → '/static/pdf_backgrounds/foo.jpg'
+        //   3) full URL                 → 'https://.../foo.jpg'
+        let src;
+        if (/^https?:\/\//i.test(bg))            src = bg;
+        else if (bg.startsWith('/static/'))      src = bg;
+        else if (bg.startsWith('static/'))       src = '/' + bg;
+        else                                     src = '/static/pdf_backgrounds/' + bg;
+        img.src = src;
+        img.style.display = '';
+        empty.style.display = 'none';
+        // If the image fails (broken filename), fall back to the empty state so
+        // the user is not staring at a blank white canvas without explanation.
+        img.onerror = () => {
+            img.style.display = 'none';
+            empty.style.display = '';
+            empty.querySelector('div').innerHTML =
+                '<i class="fa-regular fa-circle-xmark text-4xl text-rose-300 block mb-2"></i>' +
+                '<div class="text-rose-500 text-xs">Background not found:</div>' +
+                '<div class="text-slate-500 text-xs font-mono mt-1">' + bg + '</div>';
+        };
+    } else {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+        empty.style.display = '';
+    }
+}
+
+function renderCanvasSize(){
+    const w = pageW(), h = pageH();
+    const c = $('#canvas');
+    c.style.width  = w + 'px';
+    c.style.height = h + 'px';
+    c.style.transform = `scale(${STATE.zoom})`;
+    $('#canvasOuter').style.width  = (w * STATE.zoom) + 'px';
+    $('#canvasOuter').style.height = (h * STATE.zoom) + 'px';
+    $('#zoomLabel').textContent = Math.round(STATE.zoom*100) + '%';
+}
+
+/* ── Canvas markers ── */
+function renderFields(){
+    const c = $('#canvas');
+    // Remove old markers
+    $$('.field-marker', c).forEach(el => el.remove());
+    // Render current page only
+    for (const f of STATE.fields){
+        if ((parseInt(f.page)||1) !== STATE.page) continue;
+        c.appendChild(buildMarker(f));
+    }
+    // Re-select previously-selected if still present
+    if (STATE.selected){
+        const el = c.querySelector(`[data-uid="${STATE.selected}"]`);
+        if (el) el.classList.add('selected');
+        else STATE.selected = null;
+    }
+    renderStatus();
+}
+
+function buildMarker(f){
+    const w_pt = parseFloat(f.width)  || 100;
+    const h_pt = Math.max(parseFloat(f.height)||0, parseFloat(f.font_size)*1.25 || 14);
+    const el = document.createElement('div');
+    el.className = `field-marker type-${escapeAttr(f.field_type||'text')}`;
+    el.dataset.uid = f._uid;
+    el.style.left   = ptToCssLeft(parseFloat(f.x)||0) + 'px';
+    el.style.top    = ptToCssTop(parseFloat(f.y)||0, h_pt) + 'px';
+    el.style.width  = (w_pt * PT_TO_CSS) + 'px';
+    el.style.height = (h_pt * PT_TO_CSS) + 'px';
+    el.style.fontSize  = (parseFloat(f.font_size)||11) + 'pt';
+    el.style.color     = f.color || '#000';
+    el.style.textAlign = f.align || 'left';
+    el.style.fontWeight = f.font_bold ? '700' : '400';
+    el.style.fontStyle  = f.font_italic ? 'italic' : 'normal';
+    // Body text: prefer label (for designer clarity), fall back to key.
+    const bcContent = (f.meta && (f.meta.barcode_content || f.meta.content)) || '';
+    const body = f.field_type === 'photo'    ? '📷 photo' :
+                 f.field_type === 'barcode'  ? (bcContent || '||| barcode |||') :
+                 f.field_type === 'checkbox' ? (f.static_value || '☐') :
+                 f.field_type === 'trade_table' ? '▦ trade table' :
+                 (f.static_value || f.label || f.field_key || '');
+    el.innerHTML = `
+        <span class="marker-tag">${escapeHtml(f.label || f.field_key)}</span>
+        <span class="marker-body">${escapeHtml(body)}</span>
+        <span class="marker-handle"></span>
+    `;
+    bindMarkerHandlers(el, f);
+    return el;
+}
+
+/* ── Properties panel ── */
+function renderPropertiesPanel(){
+    const f = currentField();
+    if (!f){
+        $('#propsForm').classList.add('hidden');
+        $('#propsEmpty').classList.remove('hidden');
+        return;
+    }
+    $('#propsEmpty').classList.add('hidden');
+    $('#propsForm').classList.remove('hidden');
+    // Identity + geometry + typography
+    setPropVal('label',       f.label || '');
+    setPropVal('field_key',   f.field_key || '');
+    setPropVal('field_type',  f.field_type || 'text');
+    setPropVal('static_value',f.static_value || '');
+    setPropVal('x',           round1(f.x));
+    setPropVal('y',           round1(f.y));
+    setPropVal('width',       round1(f.width));
+    setPropVal('height',      round1(f.height));
+    setPropVal('font_size',   f.font_size ?? 11);
+    setPropVal('color',       f.color || '#000000');
+    setPropVal('align',       f.align || 'left');
+    setPropVal('page',        f.page || 1);
+    setPropVal('font_bold',   !!f.font_bold);
+    setPropVal('font_italic', !!f.font_italic);
+
+    $('#rowStatic').classList.toggle('hidden', f.field_type !== 'static');
+
+    // Type-specific meta
+    const meta = f.meta || {};
+    const showMeta = ['char_cells','photo','barcode','trade_table'].includes(f.field_type);
+    $('#metaWrap').classList.toggle('hidden', !showMeta);
+    $('#metaCells').classList.toggle('hidden',    f.field_type !== 'char_cells');
+    $('#metaPhoto').classList.toggle('hidden',    f.field_type !== 'photo');
+    $('#metaBarcode').classList.toggle('hidden',  f.field_type !== 'barcode');
+    $('#metaTrade').classList.toggle('hidden',    f.field_type !== 'trade_table');
+    if (f.field_type === 'char_cells'){
+        setMeta('cell_count', meta.cell_count ?? 13);
+        setMeta('cell_width', meta.cell_width ?? 18);
+        setMeta('cell_gap',   meta.cell_gap   ?? 0);
+        setMeta('format',     meta.format     ?? '');
+        setMeta('draw_boxes', !!meta.draw_boxes);
+    } else if (f.field_type === 'photo'){
+        setMeta('fit',    meta.fit    ?? 'cover');
+        setMeta('border', meta.border ?? true);
+    } else if (f.field_type === 'barcode'){
+        setMeta('barcode_content',   meta.barcode_content ?? meta.content ?? (f.field_key && !f.field_key.startsWith('__') ? '{{'+f.field_key+'}}' : ''));
+        setMeta('symbology',         meta.symbology ?? meta.format ?? 'code128');
+        setMeta('bar_height',        meta.bar_height ?? 26);
+        setMeta('bar_width',         meta.bar_width ?? '');
+        setMeta('caption_font_size', meta.caption_font_size ?? meta.caption_font ?? 8);
+        setMeta('show_text',         meta.show_text ?? meta.human_readable ?? true);
+    } else if (f.field_type === 'trade_table'){
+        // Normalise columns to a CSV string for the input.
+        let colsStr = '';
+        if (Array.isArray(meta.columns)){
+            colsStr = meta.columns.map(c => (typeof c === 'string' ? c : (c && c.key) || '')).filter(Boolean).join(',');
+        } else if (typeof meta.columns === 'string'){
+            colsStr = meta.columns;
+        }
+        setMeta('columns',     colsStr);
+        setMeta('row_height',  meta.row_height ?? '');
+        setMeta('padding_x',   meta.padding_x ?? 3);
+        setMeta('max_rows',    meta.max_rows ?? 0);
+        setMeta('header_fill', meta.header_fill ?? '#e5e7eb');
+        setMeta('show_header', meta.show_header ?? true);
+        setMeta('border',      meta.border ?? true);
+        setMeta('zebra',       !!meta.zebra);
+    }
+}
+
+function setPropVal(prop, value){
+    const el = $(`[data-prop="${prop}"]`);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!value;
+    else el.value = value;
+}
+function setMeta(key, value){
+    const el = $(`[data-meta="${key}"]`);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!value;
+    else el.value = value;
+}
+function round1(v){ return Math.round((parseFloat(v)||0)*10)/10; }
+
+function currentField(){
+    if (!STATE.selected) return null;
+    return STATE.fields.find(f => f._uid === STATE.selected) || null;
+}
+
+/* ═══════════════ DRAG & DROP ═══════════════ */
+function bindStaticHandlers(){
+    // Metadata inputs -> dirty
+    ['metaName','metaDescription','metaCategory','metaDataSource','metaStatus',
+     'metaLetterhead','metaDepositor','metaContentNotes'].forEach(id => {
+        const el = $('#' + id);
+        if (!el) return;
+        el.addEventListener('change', () => markDirty());
+        if (el.tagName === 'INPUT' && el.type !== 'checkbox') el.addEventListener('input', () => markDirty());
+        if (el.tagName === 'TEXTAREA') el.addEventListener('input', () => markDirty());
+    });
+    $('#metaDataSource').addEventListener('change', async () => { await loadPalette(); renderPaletteList(); });
+
+    // Background select
+    $('#bgSelect').addEventListener('change', (ev) => {
+        STATE.template.background_image = ev.target.value;
+        renderBackground();
+        markDirty();
+    });
+
+    // Zoom
+    $('#zoomIn').onclick  = () => { STATE.zoom = Math.min(STATE.zoom + 0.1, 2.0); renderCanvasSize(); };
+    $('#zoomOut').onclick = () => { STATE.zoom = Math.max(STATE.zoom - 0.1, 0.25); renderCanvasSize(); };
+    $('#zoomFit').onclick = () => {
+        const vp = $('#canvasViewport');
+        const usable = vp.clientWidth - 48;
+        STATE.zoom = Math.max(0.25, Math.min(2.0, usable / pageW()));
+        renderCanvasSize();
+    };
+
+    // Palette search
+    $('#paletteSearch').addEventListener('input', () => renderPaletteList());
+    $('#btnExpandAll').addEventListener('click', () => {
+        $$('.palette-group-body').forEach(el => el.classList.remove('hidden'));
+        $$('.palette-group-head i.fa-chevron-right').forEach(i => i.classList.replace('fa-chevron-right','fa-chevron-down'));
+    });
+
+    // Insert primitives
+    $$('.insert-btn').forEach(b => b.addEventListener('click', () => insertPrimitive(b.dataset.insert)));
+    $('#btnAddCustom').addEventListener('click', addCustomText);
+    $('#customTextInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustomText(); });
+
+    // Canvas drop target
+    const c = $('#canvas');
+    c.addEventListener('dragover',  (e) => { e.preventDefault(); c.classList.add('drag-over'); });
+    c.addEventListener('dragleave', ()  => c.classList.remove('drag-over'));
+    c.addEventListener('drop',      (e) => { e.preventDefault(); c.classList.remove('drag-over'); handleCanvasDrop(e); });
+    c.addEventListener('mousemove', (e) => {
+        const r = c.getBoundingClientRect();
+        const x_css = (e.clientX - r.left) / STATE.zoom;
+        const y_css = (e.clientY - r.top)  / STATE.zoom;
+        const x_pt = cssLeftToPt(x_css);
+        const y_pt = pageH() - y_css;
+        $('#cursorCoords').textContent = `x: ${x_pt.toFixed(1)} · y: ${y_pt.toFixed(1)}`;
+    });
+    c.addEventListener('click', (e) => { if (e.target === c) { selectField(null); } });
+
+    // Properties panel bindings
+    $$('[data-prop]').forEach(el => {
+        const ev = (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'color') ? 'change' : 'input';
+        el.addEventListener(ev, onPropChange);
+    });
+    $$('[data-meta]').forEach(el => {
+        const ev = (el.tagName === 'SELECT' || el.type === 'checkbox') ? 'change' : 'input';
+        el.addEventListener(ev, onMetaChange);
+    });
+
+    $('#propDelete').addEventListener('click', deleteSelected);
+    $('#propDuplicate').addEventListener('click', duplicateSelected);
+
+    // Tabs
+    $('#tabContent').addEventListener('click', () => switchTab('content'));
+    $('#tabDesigner').addEventListener('click', () => switchTab('designer'));
+
+    // Save / cancel
+    $('#btnSave').addEventListener('click', saveAll);
+    $('#btnCancel').addEventListener('click', () => {
+        if (!STATE.dirty || confirm('Discard unsaved changes?')) location.href = '/documents';
+    });
+
+    // Keyboard shortcuts: arrows to nudge selected, Delete to remove
+    document.addEventListener('keydown', (e) => {
+        const f = currentField();
+        if (!f) return;
+        if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+        const step = e.shiftKey ? 10 : 1;
+        if (e.key === 'ArrowLeft')  { f.x = Math.max(0, (f.x||0) - step); markDirty(); renderFields(); renderPropertiesPanel(); e.preventDefault(); }
+        if (e.key === 'ArrowRight') { f.x = (f.x||0) + step; markDirty(); renderFields(); renderPropertiesPanel(); e.preventDefault(); }
+        if (e.key === 'ArrowUp')    { f.y = (f.y||0) + step; markDirty(); renderFields(); renderPropertiesPanel(); e.preventDefault(); }
+        if (e.key === 'ArrowDown')  { f.y = Math.max(0, (f.y||0) - step); markDirty(); renderFields(); renderPropertiesPanel(); e.preventDefault(); }
+        if (e.key === 'Delete' || e.key === 'Backspace') { deleteSelected(); e.preventDefault(); }
+    });
+}
+
+function bindPaletteHandlers(){
+    // Group collapse
+    $$('.palette-group-head').forEach(h => h.addEventListener('click', () => {
+        const body = h.nextElementSibling;
+        const ico = h.querySelector('i.fa-chevron-right, i.fa-chevron-down');
+        if (!body) return;
+        const hidden = body.classList.toggle('hidden');
+        if (ico){
+            ico.classList.toggle('fa-chevron-down', !hidden);
+            ico.classList.toggle('fa-chevron-right', hidden);
+        }
+    }));
+    // Field drag start
+    $$('.palette-field').forEach(el => {
+        el.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/x-palette', JSON.stringify({
+                key:   el.dataset.key,
+                label: el.dataset.label,
+                ftype: el.dataset.ftype,
+            }));
+            e.dataTransfer.effectAllowed = 'copy';
+        });
+        // Double-click to insert at default position
+        el.addEventListener('dblclick', () => {
+            insertField({
+                key: el.dataset.key, label: el.dataset.label, ftype: el.dataset.ftype,
+                x_pt: 40, y_pt: pageH() - 60 - (STATE.fields.length * 18) % (pageH() - 80),
+            });
+        });
+    });
+}
+
+function handleCanvasDrop(e){
+    const raw = e.dataTransfer.getData('text/x-palette');
+    if (!raw) return;
+    let p; try { p = JSON.parse(raw); } catch { return; }
+    const c = $('#canvas');
+    const r = c.getBoundingClientRect();
+    const x_css = (e.clientX - r.left) / STATE.zoom;
+    const y_css = (e.clientY - r.top)  / STATE.zoom;
+    const h_pt = defaultHeightFor(p.ftype);
+    const y_pt = pageH() - y_css - h_pt;
+    insertField({ key: p.key, label: p.label, ftype: p.ftype, x_pt: cssLeftToPt(x_css), y_pt });
+}
+
+function defaultWidthFor(t){
+    return ({ photo:120, checkbox:14, barcode:160, trade_table:300, char_cells:260 })[t] || 180;
+}
+function defaultHeightFor(t){
+    return ({ photo:140, checkbox:14, barcode:32, trade_table:80, char_cells:22 })[t] || 18;
+}
+
+function insertField(opts){
+    const t = opts.ftype || 'text';
+    const fld = {
+        _uid: newUid(),
+        id: null,
+        label: opts.label || opts.key || 'Field',
+        field_key: opts.key || '',
+        field_type: t,
+        static_value: opts.static_value || '',
+        x: Math.max(0, Math.round((opts.x_pt || 40) * 10) / 10),
+        y: Math.max(0, Math.round((opts.y_pt || (pageH() - 60)) * 10) / 10),
+        width:  defaultWidthFor(t),
+        height: defaultHeightFor(t),
+        font_size: t === 'char_cells' ? 12 : 11,
+        font_bold: false,
+        font_italic: false,
+        color: '#000000',
+        align: t === 'checkbox' ? 'center' : 'left',
+        page: STATE.page,
+        meta: defaultMetaFor(t),
+    };
+    STATE.fields.push(fld);
+    STATE.selected = fld._uid;
+    markDirty();
+    renderFields();
+    renderPaletteList();
+    renderPropertiesPanel();
+}
+
+function defaultMetaFor(t){
+    if (t === 'char_cells') return { cell_count: 13, cell_width: 18, cell_gap: 0, format: '', draw_boxes: false };
+    if (t === 'photo')      return { fit: 'cover', border: true };
+    if (t === 'barcode')    return { symbology: 'code128', barcode_content: '{{visa_number}}', bar_height: 26, caption_font_size: 8, show_text: true };
+    if (t === 'trade_table')return { cols: ['category','qty','assigned','available'], row_height: 18 };
+    return {};
+}
+
+function insertPrimitive(kind){
+    if (kind === 'text'){
+        return insertField({ key: '__static__', label: 'Text', ftype: 'static', static_value: 'New text', x_pt: 50, y_pt: pageH()-100 });
+    }
+    if (kind === 'checkbox'){
+        return insertField({ key: '__static_checkbox__', label: 'Checkbox', ftype: 'checkbox', x_pt: 50, y_pt: pageH()-100 });
+    }
+    if (kind === 'barcode'){
+        return insertField({ key: '__static_barcode__', label: 'Barcode', ftype: 'barcode', x_pt: 50, y_pt: pageH()-100 });
+    }
+    if (kind === 'trade_table'){
+        return insertField({ key: 'trades_table', label: 'Trades Table', ftype: 'trade_table', x_pt: 50, y_pt: pageH()-120 });
+    }
+}
+
+function addCustomText(){
+    const v = $('#customTextInput').value.trim();
+    if (!v) return;
+    insertField({ key: '__static__', label: v.slice(0,30), ftype: 'static', static_value: v, x_pt: 50, y_pt: pageH()-100 });
+    $('#customTextInput').value = '';
+}
+
+/* ═══════════════ MARKER INTERACTIONS ═══════════════ */
+function bindMarkerHandlers(el, f){
+    // Selection
+    el.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('marker-handle')) return startResize(e, el, f);
+        selectField(f._uid);
+        startDrag(e, el, f);
+    });
+    // Double-click → focus field_key in properties
+    el.addEventListener('dblclick', () => {
+        selectField(f._uid);
+        $('[data-prop="field_key"]')?.focus();
+    });
+}
+
+function startDrag(e, el, f){
+    e.preventDefault();
+    const c = $('#canvas');
+    const r = c.getBoundingClientRect();
+    const startX = e.clientX, startY = e.clientY;
+    const x0 = f.x, y0 = f.y;
+    function onMove(ev){
+        const dx = (ev.clientX - startX) / STATE.zoom;
+        const dy = (ev.clientY - startY) / STATE.zoom;   // CSS down → PDF down
+        f.x = Math.max(0, Math.round((x0 + dx) * 10) / 10);
+        f.y = Math.max(0, Math.round((y0 - dy) * 10) / 10);
+        el.style.left = ptToCssLeft(f.x) + 'px';
+        el.style.top  = ptToCssTop(f.y, parseFloat(f.height)||14) + 'px';
+        if (STATE.selected === f._uid){
+            setPropVal('x', round1(f.x));
+            setPropVal('y', round1(f.y));
+        }
+        markDirty();
+    }
+    function onUp(){
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+}
+
+function startResize(e, el, f){
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const w0 = f.width, h0 = f.height;
+    function onMove(ev){
+        const dx = (ev.clientX - startX) / STATE.zoom;
+        const dy = (ev.clientY - startY) / STATE.zoom;
+        f.width  = Math.max(8, Math.round((w0 + dx) * 10) / 10);
+        f.height = Math.max(8, Math.round((h0 + dy) * 10) / 10);
+        el.style.width  = (f.width  * PT_TO_CSS) + 'px';
+        el.style.height = (f.height * PT_TO_CSS) + 'px';
+        el.style.top    = ptToCssTop(f.y, f.height) + 'px';
+        if (STATE.selected === f._uid){
+            setPropVal('width', round1(f.width));
+            setPropVal('height', round1(f.height));
+        }
+        markDirty();
+    }
+    function onUp(){
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+}
+
+function selectField(uid){
+    STATE.selected = uid;
+    $$('.field-marker', $('#canvas')).forEach(el => {
+        el.classList.toggle('selected', el.dataset.uid === uid);
+    });
+    renderPropertiesPanel();
+}
+
+/* ═══════════════ PROPERTIES → STATE ═══════════════ */
+function onPropChange(ev){
+    const f = currentField();
+    if (!f) return;
+    const el = ev.target;
+    const prop = el.dataset.prop;
+    let v;
+    if (el.type === 'checkbox') v = el.checked;
+    else if (el.type === 'number') v = parseFloat(el.value) || 0;
+    else v = el.value;
+
+    if (prop === 'field_type' && v !== f.field_type){
+        f.field_type = v;
+        f.meta = { ...(f.meta||{}), ...defaultMetaFor(v) };
+    } else {
+        f[prop] = v;
+    }
+    markDirty();
+    renderFields();
+    renderPaletteList();
+    if (['field_type'].includes(prop)) renderPropertiesPanel();
+}
+
+function onMetaChange(ev){
+    const f = currentField(); if (!f) return;
+    const el = ev.target;
+    const key = el.dataset.meta;
+    let v;
+    if (el.type === 'checkbox') v = el.checked;
+    else if (el.type === 'number') v = (el.value === '' ? '' : (parseFloat(el.value) || 0));
+    else v = el.value;
+    f.meta = { ...(f.meta || {}), [key]: v };
+    markDirty();
+    renderFields();
+}
+
+function deleteSelected(){
+    const f = currentField(); if (!f) return;
+    if (f.id) STATE.deletedIds.push(f.id);
+    STATE.fields = STATE.fields.filter(x => x._uid !== f._uid);
+    STATE.selected = null;
+    markDirty();
+    renderFields();
+    renderPaletteList();
+    renderPropertiesPanel();
+}
+
+function duplicateSelected(){
+    const f = currentField(); if (!f) return;
+    const clone = { ...f, _uid: newUid(), id: null, x: (f.x||0) + 10, y: Math.max(0,(f.y||0) - 10) };
+    STATE.fields.push(clone);
+    STATE.selected = clone._uid;
+    markDirty();
+    renderFields();
+    renderPropertiesPanel();
+}
+
+/* ═══════════════ TABS ═══════════════ */
+function switchTab(which){
+    const isContent = which === 'content';
+    $('#paneContent').classList.toggle('hidden', !isContent);
+    $('#paneDesigner').classList.toggle('hidden', isContent);
+    $('#tabContent').classList.toggle('bg-white', isContent);
+    $('#tabContent').classList.toggle('shadow', isContent);
+    $('#tabContent').classList.toggle('text-blue-700', isContent);
+    $('#tabContent').classList.toggle('text-slate-600', !isContent);
+    $('#tabDesigner').classList.toggle('bg-white', !isContent);
+    $('#tabDesigner').classList.toggle('shadow', !isContent);
+    $('#tabDesigner').classList.toggle('text-blue-700', !isContent);
+    $('#tabDesigner').classList.toggle('text-slate-600', isContent);
+}
+
+/* ═══════════════ SAVE ═══════════════ */
+async function saveAll(){
+    const btn = $('#btnSave');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving…';
+    try {
+        // 1) Save template metadata
+        const metaPayload = {
+            name:           $('#metaName').value.trim(),
+            description:    serializeDescription(),
+            category:       $('#metaCategory').value,
+            data_source:    $('#metaDataSource').value,
+            is_active:      $('#metaStatus').value === '1',
+            background_image: STATE.template.background_image || '',
+        };
+        await axios.put(`/api/documents/templates/${TPL_ID}`, metaPayload);
+
+        // 2) Bulk save fields
+        const fields = STATE.fields.map(f => ({
+            id: f.id || null,
+            label: f.label || '',
+            field_key: f.field_key || '',
+            field_type: f.field_type || 'text',
+            static_value: f.static_value || '',
+            x: parseFloat(f.x) || 0,
+            y: parseFloat(f.y) || 0,
+            width:  parseFloat(f.width)  || 0,
+            height: parseFloat(f.height) || 0,
+            font_size: parseFloat(f.font_size) || 11,
+            font_bold: !!f.font_bold,
+            font_italic: !!f.font_italic,
+            color: f.color || '#000000',
+            align: f.align || 'left',
+            page: parseInt(f.page) || 1,
+            meta: f.meta || {},
+        }));
+        const { data } = await axios.post(`/api/documents/templates/${TPL_ID}/fields/bulk`, {
+            fields, deleted_ids: STATE.deletedIds,
+        });
+
+        // 3) Reconcile ids back onto our state
+        if (data.fields){
+            const byKey = {};
+            data.fields.forEach(srv => {
+                // Match by id (already known) OR field_key + approx position
+                byKey[srv.field_key + '|' + srv.x + '|' + srv.y + '|' + srv.page] = srv;
+            });
+            for (const f of STATE.fields){
+                if (f.id) continue;
+                const k = (f.field_key || '') + '|' + f.x + '|' + f.y + '|' + (f.page||1);
+                if (byKey[k]) f.id = byKey[k].id;
+            }
+        }
+        STATE.deletedIds = [];
+        markDirty(false);
+        toast('Saved · ' + (data.total_fields || 0) + ' fields persisted', 'success');
+    } catch (err) {
+        console.error(err);
+        toast('Save failed: ' + (err.response?.data?.detail || err.message), 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Save';
+    }
+}
+
+/* ═══════════════ DESCRIPTION META FENCE ═══════════════
+ * The DB has no columns for letterhead / depositor / notes, so we
+ * persist them inside an HTML-comment "meta fence" appended to the
+ * description string. Visible portion stays clean.
+ *
+ *   "Standard OEP form\n<!--designer:{\"letterhead\":true}-->" */
+const META_FENCE = /<!--designer:(.+?)-->/;
+function parseMetaFromDescription(desc){
+    const m = (desc || '').match(META_FENCE);
+    if (!m) return {};
+    try { return JSON.parse(m[1]); } catch { return {}; }
+}
+function serializeDescription(){
+    const visible = ($('#metaDescription').value || '').trim();
+    const payload = {
+        letterhead: $('#metaLetterhead').checked,
+        depositor:  $('#metaDepositor').checked,
+        notes:      $('#metaContentNotes').value || '',
+    };
+    const fence = `<!--designer:${JSON.stringify(payload)}-->`;
+    return visible ? `${visible}\n${fence}` : fence;
+}
+
+/* ═══════════════ UI UTILS ═══════════════ */
+function toast(msg, kind='success'){
+    const colors = { success:'bg-emerald-600', error:'bg-rose-600', info:'bg-slate-700' };
+    const t = document.createElement('div');
+    t.className = `fixed bottom-6 right-6 ${colors[kind]||colors.info} text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-xl z-[9999] transition-opacity`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.style.opacity = '0', 2400);
+    setTimeout(() => t.remove(), 3000);
+}
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * v9 LIVE DATA PREVIEW
+ * ─────────────────────────────────────────────────────────────────────
+ *   The user picks a candidate via the search box in the Live Data
+ *   Preview bar. We fetch /preview-data and overlay the real values onto
+ *   the field markers so the designer shows EXACTLY what will print.
+ *
+ *   Two modes:
+ *     OFF (default) — markers show field_key tags (designer mode)
+ *     ON            — markers show real candidate data values
+ *
+ *   The PRINT PREVIEW button opens /templates/{id}/print?record_id={cid}
+ *   in a new tab — the user sees the print dialog with the overlay
+ *   already on top of the background image.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+STATE.previewRecord = null;       // { id, label, values: { field_key: value } }
+STATE.previewMode = false;        // toggle state
+
+function bindPreviewHandlers(){
+    const inp = document.getElementById('previewSearchInput');
+    const results = document.getElementById('previewSearchResults');
+    const tog = document.getElementById('previewModeToggle');
+    const btnPrint = document.getElementById('btnPrintPreview');
+    const btnOpen = document.getElementById('btnOpenInCandidate');
+    if (!inp || !tog || !btnPrint) return;
+
+    let searchTimer = null;
+    inp.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        const q = inp.value.trim();
+        if (q.length < 2){ results.classList.add('hidden'); results.innerHTML = ''; return; }
+        searchTimer = setTimeout(async () => {
+            try {
+                const ds = STATE.template?.data_source || 'candidate';
+                let url = `/api/candidates/?q=${encodeURIComponent(q)}&limit=10`;
+                if (ds === 'demand') url = `/api/demands/?q=${encodeURIComponent(q)}&limit=10`;
+                else if (ds === 'client') url = `/api/clients/?q=${encodeURIComponent(q)}&limit=10`;
+                const { data } = await axios.get(url);
+                const items = Array.isArray(data) ? data : (data.items || []);
+                if (!items.length){
+                    results.innerHTML = '<div class="px-3 py-2 text-xs text-slate-400">No matches</div>';
+                } else {
+                    results.innerHTML = items.map(r => {
+                        const lbl = r.full_name || r.company_name || r.file_number || `#${r.id}`;
+                        const sub = r.passport_no || r.file_number || r.email || '';
+                        return `<button type="button" class="w-full text-left px-3 py-1.5 hover:bg-emerald-50 border-b border-emerald-50 last:border-0" data-rid="${r.id}" data-lbl="${escapeAttr(lbl)}">
+                          <div class="text-xs font-semibold text-slate-800">${escapeHtml(lbl)}</div>
+                          ${sub ? `<div class="text-[10px] text-slate-500 font-mono">${escapeHtml(sub)}</div>` : ''}
+                        </button>`;
+                    }).join('');
+                    results.querySelectorAll('button[data-rid]').forEach(b => {
+                        b.addEventListener('click', () => {
+                            selectPreviewRecord(parseInt(b.dataset.rid), b.dataset.lbl);
+                            results.classList.add('hidden');
+                            inp.value = b.dataset.lbl;
+                        });
+                    });
+                }
+                results.classList.remove('hidden');
+            } catch (e) { console.error('preview search', e); }
+        }, 220);
+    });
+    document.addEventListener('click', (e) => {
+        if (!results.contains(e.target) && e.target !== inp) results.classList.add('hidden');
+    });
+
+    tog.addEventListener('change', () => {
+        STATE.previewMode = tog.checked;
+        renderFields();
+    });
+
+    btnPrint.addEventListener('click', () => {
+        if (!STATE.previewRecord){ toast('Pick a candidate first', 'error'); return; }
+        const url = `/api/documents/templates/${TPL_ID}/print?record_id=${STATE.previewRecord.id}&auto=1`;
+        window.open(url, '_blank');
+    });
+    if (btnOpen) btnOpen.addEventListener('click', () => {
+        if (!STATE.previewRecord){ toast('Pick a candidate first', 'error'); return; }
+        const ds = STATE.template?.data_source || 'candidate';
+        const path = ds === 'demand' ? `/demands/${STATE.previewRecord.id}` : `/candidates#${STATE.previewRecord.id}`;
+        window.open(path, '_blank');
+    });
+}
+
+async function selectPreviewRecord(rid, label){
+    document.getElementById('previewActiveLabel').textContent = `· loading…`;
+    try {
+        const { data } = await axios.get(`/api/documents/templates/${TPL_ID}/preview-data?record_id=${rid}`);
+        const values = {};
+        (data.fields || []).forEach(f => { values[f.field_key] = f.value; });
+        STATE.previewRecord = { id: rid, label, values };
+        document.getElementById('previewActiveLabel').innerHTML = `· <b class="text-emerald-700">${escapeHtml(label)}</b>`;
+        // Auto-enable preview mode after picking
+        const tog = document.getElementById('previewModeToggle');
+        tog.checked = true;
+        STATE.previewMode = true;
+        renderFields();
+        toast(`Loaded ${Object.keys(values).length} values for "${label}"`, 'success');
+    } catch (err) {
+        toast('Preview load failed', 'error');
+        document.getElementById('previewActiveLabel').textContent = '';
+    }
+}
+
+// ── Patch renderFields to show real values when previewMode is on ──
+// We hook AFTER the original render and override marker text.
+const _renderFieldsOriginal = renderFields;
+renderFields = function(){
+    _renderFieldsOriginal();
+    if (!STATE.previewMode || !STATE.previewRecord) return;
+    const vals = STATE.previewRecord.values || {};
+    document.querySelectorAll('#canvas .field-marker').forEach(el => {
+        const uid = el.dataset.uid;
+        const f = STATE.fields.find(x => x._uid === uid);
+        if (!f) return;
+        // Skip non-text-ish types — leave their visual representation
+        if (['photo','barcode','trade_table','checkbox'].includes(f.field_type)) return;
+        const v = vals[f.field_key];
+        if (v != null && String(v).trim() !== ''){
+            // Replace the inner label text with the real candidate value
+            el.textContent = String(v);
+            el.style.background = 'rgba(16,185,129,0.06)';
+            el.style.borderColor = '#10b981';
+        }
+    });
+};
+
+/* GO */
+document.addEventListener('DOMContentLoaded', () => {
+    bootstrap().then(() => {
+        try { bindPreviewHandlers(); } catch(e){ console.error('preview bind', e); }
+    });
+});
+</script>
+{% endblock %}

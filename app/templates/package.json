@@ -1,0 +1,12 @@
+{
+  "name": "dogar-portal-e2e",
+  "version": "1.0.0",
+  "description": "E2E tests for the Python backend using Vitest",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "axios": "^1.6.0"
+  }
+}

@@ -1,0 +1,1173 @@
+/* Dogar Trading Portal - Custom Styles */
+
+/* Table styles — v7 readability upgrade: bigger type, generous row height,
+   uniform cell padding so secondary cells (text-xs / text-[13px]) no longer
+   look squashed on dense lists like /candidates. */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.data-table th {
+  background-color: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.85rem 1.1rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 0.95rem 1.1rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #0f172a;
+  vertical-align: middle;
+}
+.data-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+/* Bump nested font-size utility classes used inside cells so the
+   "secondary" lines (S/O name, client subtitle, etc.) stay readable. */
+.data-table td .text-xs,
+.data-table td .text-\[10px\],
+.data-table td .text-\[11px\],
+.data-table td .text-\[12px\] { font-size: 0.78rem !important; line-height: 1.4; }
+.data-table td .text-\[13px\] { font-size: 0.85rem !important; line-height: 1.4; }
+.data-table td .text-sm        { font-size: 0.9rem !important; }
+.data-table td .font-mono      { font-size: 0.85rem !important; letter-spacing: 0.01em; }
+.data-table td .font-semibold  { color: #0f172a; }
+
+/* Status badges */
+.badge { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+.badge-pending { background-color: #f1f5f9; color: #475569; }
+.badge-processing { background-color: #dbeafe; color: #1e40af; }
+.badge-issued { background-color: #fef3c7; color: #92400e; }
+.badge-deployed { background-color: #dcfce7; color: #15803d; }
+.badge-filled { background-color: #dcfce7; color: #15803d; }
+.badge-active { background-color: #dcfce7; color: #15803d; }
+.badge-inactive { background-color: #f1f5f9; color: #64748b; }
+.badge-expired { background-color: #fee2e2; color: #b91c1c; }
+.badge-cancelled { background-color: #fee2e2; color: #b91c1c; }
+.badge-rejected { background-color: #fee2e2; color: #b91c1c; }
+
+/* Buttons — SaaS corporate blue (DEMO OEP) */
+.btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; transition: all 0.15s; cursor: pointer; }
+.btn-primary { background-color: #2563eb; color: white; }
+.btn-primary:hover { background-color: #1d4ed8; }
+.btn-secondary { background-color: #f1f5f9; color: #475569; }
+.btn-secondary:hover { background-color: #e2e8f0; }
+.btn-danger { background-color: #dc2626; color: white; }
+.btn-danger:hover { background-color: #b91c1c; }
+.btn-outline { border: 1px solid #cbd5e1; color: #475569; background: white; }
+.btn-outline:hover { background-color: #f8fafc; border-color: #2563eb; color: #2563eb; }
+.btn-sm { padding: 0.25rem 0.625rem; font-size: 0.75rem; }
+
+/* Modal overlay */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.modal-box { background: white; border-radius: 0.75rem; max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+/* Wide modal for the candidate data-entry wizard (centered, like the DEMO OEP master form) */
+.modal-box-wizard { max-width: 880px; display: flex; flex-direction: column; padding: 0; }
+
+/* Form inputs */
+.form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    transition: border-color 0.15s;
+    background: white;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.form-label { display: block; font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.025em; }
+
+/* PDF Builder canvas */
+.pdf-canvas-wrap {
+    position: relative;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    overflow: auto;
+    max-height: 80vh;
+}
+.pdf-page {
+    position: relative;
+    background: white;
+    margin: 1rem auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.pdf-field {
+    position: absolute;
+    border: 2px dashed #2563eb;
+    background: rgba(37, 99, 235, 0.08);
+    padding: 2px 4px;
+    cursor: move;
+    font-size: 11px;
+    color: #2563eb;
+    user-select: none;
+    min-width: 60px;
+}
+.pdf-field:hover, .pdf-field.active {
+    border-color: #1565C0;
+    background: rgba(21, 101, 192, 0.15);
+    color: #1565C0;
+    box-shadow: 0 0 0 2px rgba(21,101,192,0.2);
+}
+.pdf-field .resize-handle {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    width: 10px;
+    height: 10px;
+    background: #1565C0;
+    border-radius: 50%;
+    cursor: nwse-resize;
+}
+
+/* Sidebar nav items (DEMO OEP style) */
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    color: #475569;
+    font-weight: 500;
+    transition: background 0.12s, color 0.12s;
+    cursor: pointer;
+    text-decoration: none;
+}
+.nav-item:hover { background: #f1f5f9; color: #0f172a; }
+.nav-active {
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+.nav-active i { color: #1d4ed8; }
+.nav-active-parent { color: #1d4ed8; }
+.nav-active-parent i { color: #1d4ed8; }
+.nav-sub {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.4rem;
+    color: #64748b;
+    font-size: 12.5px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.12s, color 0.12s;
+}
+.nav-sub:hover { background: #f8fafc; color: #0f172a; }
+.nav-sub-active { background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+.nav-group button { font-size: 13px; }
+
+/* Tab bar (DEMO OEP underline style) */
+.tab-bar { display: flex; gap: 1.5rem; border-bottom: 1px solid #e2e8f0; }
+.tab-btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.75rem 0; font-size: 13.5px; font-weight: 500;
+    color: #64748b; border-bottom: 2px solid transparent;
+    cursor: pointer; transition: color 0.12s, border-color 0.12s;
+}
+.tab-btn:hover { color: #0f172a; }
+.tab-btn.active { color: #0f172a; border-bottom-color: #0f172a; font-weight: 600; }
+.tab-btn .count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    background: #f1f5f9; color: #475569; border-radius: 9px;
+    font-size: 11px; font-weight: 600;
+}
+
+/* Cards & stat tiles */
+.card { background: white; border: 1px solid #e2e8f0; border-radius: 0.625rem; }
+.card-header { padding: 0.875rem 1rem; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; }
+.card-body { padding: 1rem; }
+.stat-tile {
+    background: white; border: 1px solid #e2e8f0; border-radius: 0.625rem;
+    padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;
+}
+.stat-tile .stat-label { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 0.4rem; }
+.stat-tile .stat-value { font-size: 22px; font-weight: 700; color: #0f172a; }
+
+/* Slide-in drawer (right side) — extended to ~50% of page width per UX feedback */
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 40; }
+.drawer-panel {
+    position: fixed; top: 0; right: 0; height: 100vh;
+    width: 55vw; min-width: 640px; max-width: 920px;
+    background: white; z-index: 50; box-shadow: -8px 0 24px rgba(0,0,0,0.12);
+    display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform 0.25s ease-out;
+}
+@media (max-width: 1024px) {
+    .drawer-panel { width: 92vw; min-width: 0; }
+}
+.drawer-panel.open { transform: translateX(0); }
+.drawer-header { padding: 1rem 1.25rem; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+.drawer-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; }
+.drawer-footer { padding: 0.875rem 1.25rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; gap: 0.5rem; }
+
+/* Stepper (Personal Info \u2192 Identification \u2192 Employment \u2192 Next of Kin) */
+.stepper { display: flex; gap: 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 1rem; }
+.step {
+    flex: 1; display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 0.75rem; font-size: 12.5px; color: #64748b;
+    border-bottom: 2px solid transparent; cursor: default;
+}
+.step-no, .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: #e2e8f0; color: #64748b; font-size: 11px; font-weight: 700; border-radius: 50%; }
+.step.done .step-no, .step.done .step-num { background: #d1fae5; color: #047857; }
+.step.active { color: #0f172a; border-bottom-color: #2563eb; font-weight: 600; }
+.step.active .step-no, .step.active .step-num { background: #2563eb; color: white; }
+.step-label { white-space: nowrap; }
+
+/* Sidebar mobile */
+@media (max-width: 768px) {
+    aside#sidebar { transform: translateX(-100%); }
+    aside#sidebar.show { transform: translateX(0); }
+    .ml-60 { margin-left: 0 !important; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ============== PRINT STYLES (clients, demands, candidates) ============== */
+@media print {
+    /* Hide layout chrome */
+    aside#sidebar,
+    header.topbar,
+    nav.tab-bar .tab-btn .count,
+    .no-print,
+    button,
+    .card-header > div:last-child,   /* hide action buttons in card headers */
+    .data-table th:last-child:not([data-print="keep"]),
+    .data-table td:last-child:not([data-print="keep"]) {
+        display: none !important;
+    }
+    /* Reset margins + zoom for paper */
+    body { background: white !important; color: #0f172a !important; font-size: 11pt; }
+    main, .ml-60 { margin: 0 !important; padding: 0 !important; }
+    .card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; page-break-inside: avoid; }
+    .stat-tile { box-shadow: none !important; border: 1px solid #cbd5e1 !important; }
+    /* Hide the active-tab interaction; in print we show the currently visible pane only */
+    .tab-pane.hidden { display: none !important; }
+    /* Make tables compact for print */
+    .data-table th, .data-table td { padding: 4px 8px !important; font-size: 10pt; }
+    /* Page break helpers */
+    h1, h2, h3 { page-break-after: avoid; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+}
+
+/* ============== v7 ENTERPRISE POLISH ============== */
+
+/* Smoother body rendering */
+html { -webkit-text-size-adjust: 100%; }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+
+/* Keyboard focus rings (accessibility) */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* Drawer panel polish - smoother slide-in transition */
+.drawer-panel {
+    will-change: transform;
+}
+
+/* Profile info card hover (subtle lift for interactive feel) */
+.bg-white.border.border-slate-200.rounded-xl.shadow-sm {
+    transition: box-shadow 200ms ease, border-color 200ms ease;
+}
+.bg-white.border.border-slate-200.rounded-xl.shadow-sm:hover {
+    box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04);
+    border-color: #cbd5e1;
+}
+
+/* Table row hover refinement */
+.data-table tbody tr {
+    transition: background-color 120ms ease;
+}
+.data-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* Better empty-state look */
+.empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 3rem 1.5rem; text-align: center; color: #64748b;
+}
+.empty-state i { font-size: 2.5rem; color: #cbd5e1; margin-bottom: 0.75rem; }
+.empty-state .empty-title { font-weight: 600; color: #334155; margin-bottom: 0.25rem; }
+.empty-state .empty-sub   { font-size: 0.825rem; color: #94a3b8; }
+
+/* Loading skeleton animation - polished version */
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.skeleton {
+    background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 4px;
+}
+
+/* Subtle elevation for primary buttons */
+.btn-primary {
+    box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.1);
+    transition: all 150ms ease;
+}
+.btn-primary:hover { box-shadow: 0 4px 8px -2px rgba(37, 99, 235, 0.2); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.1); }
+
+/* Card-header consistent spacing */
+.card-header {
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
+}
+
+/* Stat tile refinement */
+.stat-tile {
+    transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.stat-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px -4px rgba(15, 23, 42, 0.1);
+}
+
+/* Drawer scrollable area: subtle inner shadow at the top for depth */
+#drawer .flex-1.overflow-y-auto {
+    background-image:
+        radial-gradient(ellipse at top, rgba(15,23,42,0.04) 0%, transparent 50%);
+}
+
+/* Tab bar polish */
+.tab-bar { display: flex; gap: 0.25rem; border-bottom: 1px solid #e2e8f0; }
+.tab-btn {
+    padding: 0.55rem 0.95rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #64748b;
+    border-bottom: 2px solid transparent;
+    transition: all 150ms ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: transparent;
+    border-radius: 6px 6px 0 0;
+}
+.tab-btn:hover { color: #2563eb; background: #f1f5f9; }
+.tab-btn.active {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+    font-weight: 600;
+    background: #eff6ff;
+}
+
+/* Improved form inputs */
+.form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background: white;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.form-input:disabled, .form-select:disabled, .form-textarea:disabled {
+    background-color: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+.form-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+/* Reduced motion: respect users who prefer no animation */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+    }
+}
+
+/* ============================================================== */
+/* ===========  PRODUCTION POLISH v8 — GLASSMORPHISM  =========== */
+/* ==============================================================
+   Non-breaking enhancement layer. Adds a pure light-white surface
+   system, frosted-glass chrome (topbar / sidebar / modals / cards),
+   refined Inter typography, softer elevation and crisper focus —
+   without altering the existing class contracts above.
+   ============================================================== */
+
+:root{
+  --bg-app:        #f7f9fc;   /* pure, soft, light-white app canvas      */
+  --bg-surface:    #ffffff;   /* card / panel base                       */
+  --glass-bg:      rgba(255,255,255,0.72);
+  --glass-bg-strong: rgba(255,255,255,0.86);
+  --glass-border:  rgba(255,255,255,0.55);
+  --hairline:      #eef1f6;
+  --ink:           #0f172a;
+  --ink-soft:      #475569;
+  --ink-mute:      #94a3b8;
+  --brand:         #2563eb;
+  --brand-dark:    #1d4ed8;
+  --ring:          rgba(37,99,235,0.16);
+  --shadow-sm:     0 1px 2px rgba(15,23,42,.05);
+  --shadow-md:     0 4px 16px -4px rgba(15,23,42,.10), 0 2px 6px -2px rgba(15,23,42,.06);
+  --shadow-lg:     0 18px 40px -12px rgba(15,23,42,.18);
+  --radius:        14px;
+}
+.theme-forest-green{ --brand:#16a34a; --brand-dark:#15803d; --ring:rgba(22,163,74,.16); }
+
+/* ---- Typography: load Inter, keep graceful fallback -------------- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+html, body{
+  font-family:'Inter','Segoe UI',system-ui,-apple-system,Arial,sans-serif !important;
+  letter-spacing:-0.006em;
+}
+
+/* ---- Pure light-white app canvas with whisper-soft depth -------- */
+body{
+  background:
+    radial-gradient(1200px 600px at 12% -8%, #eef4ff 0%, transparent 55%),
+    radial-gradient(1000px 520px at 100% 0%, #f0fbf5 0%, transparent 50%),
+    var(--bg-app) !important;
+  background-attachment: fixed;
+  color:var(--ink);
+}
+.theme-forest-green body{
+  background:
+    radial-gradient(1200px 600px at 12% -8%, #eafff1 0%, transparent 55%),
+    radial-gradient(1000px 520px at 100% 0%, #eefcf3 0%, transparent 50%),
+    var(--bg-app) !important;
+}
+
+/* ---- Frosted-glass top bar ------------------------------------- */
+header.topbar, .topbar{
+  background: var(--glass-bg-strong) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--glass-border) !important;
+  box-shadow: 0 1px 0 rgba(15,23,42,.04), 0 6px 18px -12px rgba(15,23,42,.18);
+}
+
+/* ---- Frosted-glass sidebar ------------------------------------- */
+aside#sidebar, aside.sidebar{
+  background: var(--glass-bg) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(180%) blur(16px);
+  border-right: 1px solid var(--glass-border) !important;
+}
+.nav-item{ border-radius:10px; }
+.nav-item:hover{ background: rgba(37,99,235,.07); color:var(--brand-dark); }
+.nav-active{
+  background: linear-gradient(135deg, rgba(37,99,235,.14), rgba(37,99,235,.06)) !important;
+  color:var(--brand-dark) !important;
+  box-shadow: inset 0 0 0 1px rgba(37,99,235,.14);
+}
+.theme-forest-green .nav-active{
+  background: linear-gradient(135deg, rgba(22,163,74,.14), rgba(22,163,74,.06)) !important;
+  box-shadow: inset 0 0 0 1px rgba(22,163,74,.14);
+}
+
+/* ---- Cards & tiles: glass-lite, purer white, softer corners ----- */
+.card, .stat-tile,
+.bg-white.border.border-slate-200.rounded-xl.shadow-sm{
+  background: var(--bg-surface);
+  border:1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.card{ overflow:hidden; }
+.card:hover{ box-shadow: var(--shadow-md); }
+.stat-tile{
+  background: linear-gradient(180deg,#ffffff 0%, #fbfcfe 100%);
+  border-radius: var(--radius);
+}
+.stat-tile .stat-value{ letter-spacing:-0.02em; }
+
+/* ---- Modals & drawers: frosted overlay + glass panel ------------ */
+.modal-overlay, .drawer-backdrop{
+  background: rgba(15,23,42,0.38) !important;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.modal-box, .drawer-panel{
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg) !important;
+  border:1px solid var(--hairline);
+}
+.drawer-panel{ border-radius:0; }
+
+/* ---- Buttons: crisper, elevated, glassy secondary --------------- */
+.btn{ border-radius:10px; font-weight:600; }
+.btn-primary{
+  background: linear-gradient(180deg, var(--brand) 0%, var(--brand-dark) 100%);
+  box-shadow: 0 1px 2px rgba(37,99,235,.25), 0 8px 18px -10px rgba(37,99,235,.5);
+}
+.theme-forest-green .btn-primary{
+  background: linear-gradient(180deg,#16a34a 0%,#15803d 100%);
+  box-shadow: 0 1px 2px rgba(22,163,74,.25), 0 8px 18px -10px rgba(22,163,74,.5);
+}
+.btn-secondary, .btn-outline{
+  background: rgba(255,255,255,.7);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+
+/* ---- Tables: airy header, hairline rows, glass card wrap -------- */
+.data-table th{
+  background: rgba(248,250,252,.85);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  border-bottom:1px solid var(--hairline);
+}
+.data-table td{ border-bottom:1px solid var(--hairline); }
+.data-table tbody tr:hover{ background: rgba(37,99,235,.035); }
+
+/* ---- Inputs: refined, brand focus ring -------------------------- */
+.form-input,.form-select,.form-textarea{ border-radius:10px; border-color:#e6eaf1; }
+.form-input:focus,.form-select:focus,.form-textarea:focus{
+  border-color:var(--brand); box-shadow:0 0 0 4px var(--ring);
+}
+
+/* ---- Badges: slightly softer pill ------------------------------- */
+.badge{ border-radius:8px; font-weight:600; letter-spacing:.01em; }
+
+/* ---- Generic glass utility (opt-in via class="glass") ----------- */
+.glass{
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px);
+  border:1px solid var(--glass-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+/* ---- Login / auth pages: centered glass card on gradient -------- */
+.auth-shell{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(900px 500px at 20% 10%, #dbeafe 0%, transparent 55%),
+    radial-gradient(800px 460px at 90% 90%, #dcfce7 0%, transparent 55%),
+    #f7f9fc;
+}
+.auth-card{
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+  border:1px solid var(--glass-border);
+  border-radius:22px; box-shadow: var(--shadow-lg);
+}
+
+/* ---- Print: kill all glass so documents stay crisp white -------- */
+@media print{
+  header.topbar,.topbar,aside#sidebar,.card,.stat-tile,.glass{
+    background:#fff !important; backdrop-filter:none !important;
+    -webkit-backdrop-filter:none !important; box-shadow:none !important;
+  }
+}
+
+/* ============================================================== */
+/* ============   v9 EXPERT REFINEMENT LAYER   ================== */
+/* ==============================================================
+   Portal-wide finishing pass. Addresses concrete defects found
+   during the multi-page audit:
+   1) Native <select> looked unstyled — give them custom chevron
+   2) Tables felt empty/borderless on no-data — better dividers
+   3) Empty/loading states were plain text — proper visual state
+   4) Page header lacked structure — add divider + spacing
+   5) Sidebar nav active state mismatched on sub-pages
+   6) Stat tiles felt floaty — slight border + value hierarchy
+   7) Filter rows inconsistent — unified pill style for inputs
+   8) Buttons lacked subtle interactive feedback
+   9) Pagination footer looked weak — better hierarchy
+  10) Focus rings need single unified token
+   ============================================================== */
+
+/* ---------- 1. Native <select> harmonised with form-input look --- */
+select{
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%2364748b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  padding-right: 2rem !important;
+  background-color: #fff;
+}
+select::-ms-expand{ display:none; }
+select:disabled{ background-color:#f8fafc; color:#94a3b8; }
+
+/* ---------- 2. Tables: visible dividers, clean empty state ------- */
+.data-table{ font-size: 0.92rem; }
+.data-table thead{
+  background: linear-gradient(180deg, #fafbfd 0%, #f4f6fa 100%);
+  border-top: 1px solid var(--hairline);
+}
+.data-table thead th{
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: #475569;
+  padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+.data-table tbody tr{
+  border-bottom: 1px solid #f1f5f9;
+}
+.data-table tbody tr:last-child{ border-bottom: 1px solid transparent; }
+.data-table tbody tr:hover{ background: rgba(37,99,235,.04); }
+.data-table tbody tr.zebra:nth-child(even){ background-color: #fafbfd; }
+
+/* When tbody is empty, force a visual gap so the table doesn't collapse */
+.data-table tbody:empty::before{
+  content: "No records yet";
+  display: block;
+  padding: 2.5rem 1rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ---------- 3. Loading/empty state: in-row centered with icon ---- */
+.data-table tbody tr.loading-row td,
+.data-table tbody tr.empty-row  td{
+  text-align:center;
+  padding: 3rem 1rem !important;
+  color: #94a3b8;
+  font-style: italic;
+}
+.data-table tbody tr.loading-row td::before{
+  content:"\f3f4";
+  font-family:"Font Awesome 6 Free";
+  font-weight:900;
+  margin-right:0.5rem;
+  animation: spin 1s linear infinite;
+  display:inline-block;
+}
+@keyframes spin{ to{ transform: rotate(360deg);} }
+
+/* Stand-alone Loading… cell (legacy markup) gets a spinner too */
+td[colspan]:where(:not(:empty)){
+  font-size: 0.92rem;
+}
+
+/* ---------- 4. Page headers: refined hierarchy & breathing room -- */
+main > div > .flex.items-center.justify-between.mb-5,
+main > div > div > .flex.items-center.justify-between.mb-5{
+  padding-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--hairline);
+}
+main h1{
+  letter-spacing: -0.018em;
+  color: var(--ink);
+}
+main h1 + p{
+  color: #64748b;
+}
+
+/* ---------- 5. Sidebar nav: refined hierarchy & focus rings ------ */
+aside#sidebar nav { padding-top: 0.75rem; }
+.nav-item{
+  font-size: 13.5px;
+  padding: 0.55rem 0.85rem;
+  letter-spacing: -0.005em;
+}
+.nav-item i{ color:#64748b; font-size: 14px; }
+.nav-item:hover i{ color: var(--brand-dark); }
+.nav-active i{ color: var(--brand-dark) !important; }
+.nav-sub{
+  padding-left: 0.85rem;
+  border-left: 2px solid transparent;
+  margin-left: 0.25rem;
+}
+.nav-sub:hover{
+  background: rgba(37,99,235,.06);
+  color: var(--brand-dark);
+  border-left-color: rgba(37,99,235,.25);
+}
+.nav-sub-active{
+  background: rgba(37,99,235,.10) !important;
+  color: var(--brand-dark) !important;
+  border-left-color: var(--brand) !important;
+}
+.theme-forest-green .nav-sub-active{
+  background: rgba(22,163,74,.10) !important;
+  border-left-color: #16a34a !important;
+}
+/* "Legacy Data" section label */
+nav p.uppercase{
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+  letter-spacing: 0.1em !important;
+  padding-left: 0.85rem !important;
+  margin-top: 0.5rem;
+}
+
+/* Sidebar logo block: airier */
+aside#sidebar > div:first-child{
+  border-bottom: 1px solid var(--hairline) !important;
+  padding: 1rem !important;
+}
+
+/* ---------- 6. Stat tiles: clearer hierarchy + accent --------- */
+.stat-tile{
+  padding: 1.15rem 1.2rem;
+  position: relative;
+  overflow: hidden;
+}
+.stat-tile .stat-label,
+.stat-tile [class*="text-xs"]:first-child{
+  font-size: 11px !important;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.stat-tile .stat-value,
+.stat-tile [class*="text-3xl"],
+.stat-tile [class*="text-2xl"]{
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  line-height: 1.15;
+}
+
+/* ---------- 7. Filter rows / unified pill inputs -------------- */
+.card-header input[type="text"],
+.card-header input[type="search"],
+.card-header select{
+  font-size: 0.85rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background-color: #fff;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.card-header input[type="text"]:focus,
+.card-header input[type="search"]:focus,
+.card-header select:focus{
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* ---------- 8. Buttons: subtle elevation + focus -------------- */
+button, a.btn, .btn{
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+/* Tailwind-utility buttons (used widely in templates) get same polish */
+button.bg-blue-600,
+a.bg-blue-600{
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%) !important;
+  box-shadow: 0 1px 2px rgba(37,99,235,.25), 0 6px 16px -8px rgba(37,99,235,.45);
+  transition: all 150ms ease;
+}
+button.bg-blue-600:hover,
+a.bg-blue-600:hover{
+  background: linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%) !important;
+  box-shadow: 0 1px 2px rgba(37,99,235,.3), 0 10px 20px -8px rgba(37,99,235,.5);
+  transform: translateY(-1px);
+}
+button.bg-blue-600:active,
+a.bg-blue-600:active{ transform: translateY(0); }
+
+/* White / outline buttons: airy with hairline border */
+button.bg-white.border,
+a.bg-white.border{
+  background: #fff !important;
+  border-color: #e2e8f0 !important;
+  transition: all 150ms ease;
+}
+button.bg-white.border:hover,
+a.bg-white.border:hover{
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04);
+}
+
+/* ---------- 9. Pagination footer: better visual weight -------- */
+.card > .border-t{
+  background: linear-gradient(180deg, #fbfcfd 0%, #f7f9fc 100%);
+  border-top: 1px solid var(--hairline) !important;
+}
+#pgInfo, #paginationBar > div:first-child{
+  font-weight: 500;
+  color: #475569;
+}
+#pgPrev, #pgNext,
+button.disabled\:opacity-40{
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  font-weight: 500;
+  padding: 0.35rem 0.85rem !important;
+  border-radius: 0.4rem;
+  transition: all 120ms ease;
+}
+#pgPrev:hover:not(:disabled),
+#pgNext:hover:not(:disabled){
+  border-color: var(--brand);
+  color: var(--brand);
+  background: #eff6ff;
+}
+#pgSize{
+  background: #fff;
+  border: 1px solid #e2e8f0 !important;
+  font-weight: 500;
+  padding-right: 1.85rem !important;
+}
+
+/* ---------- 10. Focus rings: single brand token --------------- */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible{
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ---------- 11. Card headers: more refined finish ------------- */
+.card > .card-header,
+.card-header{
+  padding: 1rem 1.2rem;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+  border-bottom: 1px solid var(--hairline);
+}
+.card-header h2,
+.card-header h3,
+.card-header > .flex:first-child > div:first-child > .font-semibold{
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+}
+
+/* ---------- 12. Forms — settings page polish ------------------ */
+input[type="text"]:not(.no-style),
+input[type="email"]:not(.no-style),
+input[type="number"]:not(.no-style),
+input[type="tel"]:not(.no-style),
+input[type="url"]:not(.no-style),
+input[type="password"]:not(.no-style),
+input[type="date"]:not(.no-style),
+textarea:not(.no-style){
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+input[type="text"]:not(.no-style):focus,
+input[type="email"]:not(.no-style):focus,
+input[type="number"]:not(.no-style):focus,
+input[type="tel"]:not(.no-style):focus,
+input[type="url"]:not(.no-style):focus,
+input[type="password"]:not(.no-style):focus,
+input[type="date"]:not(.no-style):focus,
+textarea:not(.no-style):focus{
+  border-color: var(--brand) !important;
+  box-shadow: 0 0 0 3px var(--ring) !important;
+}
+
+/* ---------- 13. Search input with icon ------------------------ */
+.relative > .fa-search,
+.relative > .fa-magnifying-glass{
+  color: #94a3b8;
+}
+.relative > input:focus + .fa-search{ color: var(--brand); }
+
+/* ---------- 14. Badges hover refinement ----------------------- */
+.badge{
+  padding: 0.18rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid transparent;
+}
+.badge-pending{    background:#f1f5f9; color:#475569; border-color:#e2e8f0; }
+.badge-processing{ background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+.badge-issued{     background:#fffbeb; color:#92400e; border-color:#fde68a; }
+.badge-deployed,
+.badge-active,
+.badge-filled{     background:#ecfdf5; color:#047857; border-color:#a7f3d0; }
+.badge-inactive{   background:#f8fafc; color:#64748b; border-color:#e2e8f0; }
+.badge-expired,
+.badge-cancelled,
+.badge-rejected{   background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+
+/* ---------- 15. Tab bar polish (already exists, tightening) --- */
+.tab-bar{ gap: 0.15rem; padding: 0 0.25rem; }
+.tab-btn{
+  border-radius: 8px 8px 0 0;
+  padding: 0.6rem 1rem;
+  font-size: 13.5px;
+}
+
+/* ---------- 16. Reports page tile cards ----------------------- */
+a[href*="/reports/"],
+.report-tile{
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+a[href*="/reports/"]:hover,
+.report-tile:hover{
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px -8px rgba(15,23,42,.12);
+}
+
+/* ---------- 17. Avatar bubble in topbar ----------------------- */
+header.topbar .rounded-full,
+header.topbar .w-9.h-9.rounded-full{
+  transition: all 150ms ease;
+}
+
+/* ---------- 18. Empty state component shorthand --------------- */
+.empty-state{ padding: 4rem 1.5rem; }
+.empty-state i{
+  font-size: 3rem;
+  color: #cbd5e1;
+  margin-bottom: 1rem;
+  opacity: 0.85;
+}
+.empty-state .empty-title{
+  font-size: 1rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.25rem;
+}
+.empty-state .empty-sub{
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-bottom: 1.25rem;
+}
+
+/* ---------- 19. Document customize palette / properties ------- */
+.palette-field{
+  font-size: 12.5px;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  transition: all 120ms ease;
+  cursor: grab;
+}
+.palette-field:hover{
+  border-color: var(--brand);
+  background: #eff6ff;
+  color: var(--brand-dark);
+}
+
+/* Section title above palette */
+.text-xs.font-semibold.text-slate-500.uppercase{
+  font-size: 10.5px !important;
+  letter-spacing: 0.1em !important;
+  color: #94a3b8 !important;
+}
+
+/* ---------- 20. Modal close button & header divider ---------- */
+.modal-box > .border-b,
+.modal-box header,
+.modal-box-wizard > div:first-child{
+  border-color: var(--hairline) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+}
+
+/* ---------- 21. Dividers everywhere use hairline token -------- */
+.border-slate-200{ border-color: var(--hairline) !important; }
+.border-slate-100{ border-color: #f4f6fa !important; }
+
+/* ---------- 22. Smooth links ---------------------------------- */
+a{ transition: color 150ms ease; }
+
+/* ---------- 23. Code/monospace cells -------------------------- */
+.font-mono{
+  font-family: "JetBrains Mono","Fira Code",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing: 0;
+}
+
+/* ---------- 24. Honor reduced-motion -------------------------- */
+@media (prefers-reduced-motion: reduce){
+  button.bg-blue-600:hover,
+  a.bg-blue-600:hover,
+  .stat-tile:hover,
+  a[href*="/reports/"]:hover{ transform: none !important; }
+}
+
+/* ---------- 25. Print mode preserves these refinements safely - */
+@media print{
+  select{ background-image: none !important; padding-right: 0.5rem !important; }
+  .data-table tbody:empty::before{ display: none; }
+  main > div > .flex.items-center.justify-between.mb-5{ border: none !important; }
+  button.bg-blue-600,a.bg-blue-600{ background:#2563eb !important; box-shadow:none !important; }
+}
+
+/* ============================================================== */
+/* ============   v10 ENTERPRISE FINAL POLISH   ================= */
+/* ==============================================================
+   Targets six specific audit findings:
+   1) Stat-card icon backgrounds: colorful per-module tinting
+   2) Topbar page-title left section
+   3) Mobile sidebar overlay + smooth transition
+   4) Quick-action pill buttons: elevated interactive feel
+   5) Action dropdown menus: richer shadow & border-radius
+   6) Chart card container polish
+   ============================================================== */
+
+/* ---- 1. Stat icon color helpers ---- */
+.stat-icon-blue   { background:#eff6ff !important; color:#2563eb !important; }
+.stat-icon-green  { background:#f0fdf4 !important; color:#16a34a !important; }
+.stat-icon-amber  { background:#fffbeb !important; color:#d97706 !important; }
+.stat-icon-violet { background:#f5f3ff !important; color:#7c3aed !important; }
+.stat-icon-rose   { background:#fff1f2 !important; color:#e11d48 !important; }
+.stat-icon-cyan   { background:#ecfeff !important; color:#0891b2 !important; }
+
+/* ---- 2. Topbar page-title ---- */
+.topbar-page-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+/* ---- 3. Mobile sidebar overlay ---- */
+#sidebarOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.42);
+  z-index: 29;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  cursor: pointer;
+}
+#sidebarOverlay.show { display: block; }
+
+@media (max-width: 1023px) {
+  aside#sidebar {
+    transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.24s ease;
+    box-shadow: none;
+  }
+  aside#sidebar.show {
+    box-shadow: 6px 0 28px -4px rgba(15,23,42,.22);
+  }
+}
+
+/* ---- 4. Quick-action pill buttons ---- */
+.quick-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #334155;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  transition: all 140ms ease;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.quick-action-btn:hover {
+  background: #f0f6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  box-shadow: 0 2px 8px -2px rgba(37,99,235,.14);
+}
+.quick-action-btn .qa-icon {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+  font-size: 0.7rem;
+  background: #f1f5f9;
+  color: #64748b;
+  transition: background 140ms ease, color 140ms ease;
+  flex-shrink: 0;
+}
+.quick-action-btn:hover .qa-icon {
+  background: #2563eb;
+  color: white;
+}
+.theme-forest-green .quick-action-btn:hover {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+.theme-forest-green .quick-action-btn:hover .qa-icon {
+  background: #16a34a;
+}
+
+/* ---- 5. Action dropdown menus ---- */
+[id^="actionMenu-"] {
+  box-shadow: 0 10px 28px -4px rgba(15,23,42,.18), 0 2px 8px -2px rgba(15,23,42,.08) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 10px !important;
+}
+
+/* ---- 6. Chart card containers ---- */
+.chart-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 200ms ease;
+}
+.chart-card:hover { box-shadow: var(--shadow-md); }
+
+/* ---- 7. Demands/documents modal form label helper ---- */
+label.block > span.text-slate-600 {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ---- 8. Users page header match other pages ---- */
+.page-header-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* ---- Reduced motion guards ---- */
+@media (prefers-reduced-motion: reduce) {
+  .quick-action-btn:hover { box-shadow: none !important; }
+  aside#sidebar { transition: none !important; }
+  #sidebarOverlay { transition: none !important; }
+}

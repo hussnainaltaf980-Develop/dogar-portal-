@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}PDF Builder · {{ company_name }}{% endblock %}
+{% block page_title %}PDF Coordinate Builder{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+    <!-- Left: Available fields -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+        <h3 class="font-semibold text-slate-700 mb-3"><i class="fa-solid fa-database mr-2 text-brand-green"></i>Available Fields</h3>
+        <p class="text-xs text-slate-500 mb-3">Click a field to add it to the canvas.</p>
+        <div id="availableFields" class="space-y-1 max-h-[500px] overflow-y-auto"></div>
+        <div class="mt-4 pt-4 border-t">
+            <h4 class="font-semibold text-xs text-slate-500 uppercase mb-2">Background Image</h4>
+            <label class="btn btn-outline btn-sm w-full justify-center cursor-pointer">
+                <i class="fa-solid fa-upload"></i> Upload Background
+                <input type="file" id="bgUpload" accept="image/png,image/jpeg" class="hidden">
+            </label>
+            <p class="text-xs text-slate-400 mt-2 text-center">PNG / JPG of official form</p>
+        </div>
+    </div>
+
+    <!-- Center: PDF Canvas -->
+    <div class="lg:col-span-2">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-3 border-b flex items-center justify-between">
+                <div>
+                    <h3 class="font-semibold text-slate-700" id="tplName">Template</h3>
+                    <p class="text-xs text-slate-500" id="tplInfo"></p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="previewPDF()" class="btn btn-outline btn-sm"><i class="fa-solid fa-eye"></i> Preview PDF</button>
+                    <a href="/documents" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left"></i> Back</a>
+                </div>
+            </div>
+            <div id="canvasWrap" class="pdf-canvas-wrap">
+                <div id="pdfPage" class="pdf-page"></div>
+            </div>
+            <div class="p-2 border-t text-xs text-slate-500 flex items-center justify-between">
+                <span><i class="fa-solid fa-info-circle"></i> Drag fields to reposition · Click to select · Coords shown in PDF points (bottom-left origin)</span>
+                <span>Zoom: <select id="zoomSelect" class="form-select" style="display:inline-block;width:80px;padding:2px 6px"><option value="1">100%</option><option value="0.75" selected>75%</option><option value="0.5">50%</option><option value="1.25">125%</option></select></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Field properties -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+        <h3 class="font-semibold text-slate-700 mb-3"><i class="fa-solid fa-sliders mr-2 text-brand-blue"></i>Field Properties</h3>
+        <div id="propsPanel" class="text-sm text-slate-400">Select a field on the canvas to edit its properties.</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TPL_ID = {{ tpl_id }};
+let TEMPLATE = null;
+let AVAILABLE = [];
+let ZOOM = 0.75;
+let SELECTED_FIELD = null;
+
+async function loadAll() {
+    const [t, fields] = await Promise.all([
+        axios.get(`/api/documents/templates/${TPL_ID}`),
+        axios.get(`/api/documents/available-fields?data_source=`)
+    ]);
+    TEMPLATE = t.data;
+    AVAILABLE = (await axios.get(`/api/documents/available-fields?data_source=${TEMPLATE.data_source}`)).data;
+    document.getElementById('tplName').textContent = TEMPLATE.name;
+    document.getElementById('tplInfo').textContent = `${TEMPLATE.data_source} · ${TEMPLATE.page_width}×${TEMPLATE.page_height} pt · ${TEMPLATE.fields.length} fields`;
+    renderAvailable();
+    renderCanvas();
+}
+
+function renderAvailable() {
+    const box = document.getElementById('availableFields');
+    box.innerHTML = AVAILABLE.map(f => `
+        <button onclick="addField('${f.key}', '${escapeHtml(f.label)}')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-green-50 text-xs border border-slate-100 hover:border-brand-green transition">
+            <span class="text-slate-400 font-mono">${escapeHtml(f.key)}</span><br>
+            <span class="font-semibold">${escapeHtml(f.label)}</span>
+        </button>
+    `).join('') + `
+        <button onclick="addCustomStatic()" class="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 text-xs border border-dashed border-slate-300 hover:border-brand-blue mt-2">
+            <i class="fa-solid fa-plus text-brand-blue"></i> Add Static Text
+        </button>
+    `;
+}
+
+function renderCanvas() {
+    const wrap = document.getElementById('canvasWrap');
+    const page = document.getElementById('pdfPage');
+    const w = TEMPLATE.page_width * ZOOM;
+    const h = TEMPLATE.page_height * ZOOM;
+    page.style.width = w + 'px';
+    page.style.height = h + 'px';
+    if (TEMPLATE.background_image) {
+        page.style.backgroundImage = `url(/static/pdf_backgrounds/${TEMPLATE.background_image})`;
+        page.style.backgroundSize = '100% 100%';
+        page.style.backgroundRepeat = 'no-repeat';
+    } else {
+        page.style.background = 'repeating-linear-gradient(45deg, #f8fafc, #f8fafc 10px, #f1f5f9 10px, #f1f5f9 20px)';
+    }
+    page.innerHTML = TEMPLATE.fields.map(f => fieldHTML(f)).join('');
+    TEMPLATE.fields.forEach(f => attachDrag(f));
+}
+
+function fieldHTML(f) {
+    // PDF coordinates: y from bottom; canvas y from top
+    const top = (TEMPLATE.page_height - f.y - f.height) * ZOOM;
+    const left = f.x * ZOOM;
+    const w = f.width * ZOOM;
+    const h = Math.max(f.height * ZOOM, 16);
+    const fontSize = f.font_size * ZOOM;
+    return `<div class="pdf-field ${SELECTED_FIELD===f.id?'active':''}" data-id="${f.id}" 
+        style="left:${left}px;top:${top}px;width:${w}px;height:${h}px;font-size:${fontSize}px;font-weight:${f.font_bold?'bold':'normal'};font-style:${f.font_italic?'italic':'normal'};color:${f.color};text-align:${f.align};">
+        ${escapeHtml(f.label)}<span class="resize-handle"></span></div>`;
+}
+
+async function addField(key, label) {
+    const payload = {
+        label: label, field_key: key, field_type: 'text',
+        static_value: '', x: 100, y: TEMPLATE.page_height - 100, width: 200, height: 20,
+        font_size: 11, font_bold: false, font_italic: false, color: '#000000', align: 'left', page: 1
+    };
+    const r = await axios.post(`/api/documents/templates/${TPL_ID}/fields`, payload);
+    TEMPLATE.fields.push(r.data);
+    renderCanvas();
+    selectField(r.data.id);
+}
+async function addCustomStatic() {
+    const text = prompt('Static text to display on the PDF:');
+    if (!text) return;
+    const payload = {
+        label: 'Static: ' + text.substring(0, 20), field_key: '__static__', field_type: 'static',
+        static_value: text, x: 100, y: TEMPLATE.page_height - 100, width: 200, height: 20,
+        font_size: 11, font_bold: false, font_italic: false, color: '#000000', align: 'left', page: 1
+    };
+    const r = await axios.post(`/api/documents/templates/${TPL_ID}/fields`, payload);
+    TEMPLATE.fields.push(r.data);
+    renderCanvas();
+    selectField(r.data.id);
+}
+
+function attachDrag(field) {
+    const el = document.querySelector(`.pdf-field[data-id="${field.id}"]`);
+    if (!el) return;
+    el.addEventListener('mousedown', startDrag);
+    el.addEventListener('click', (e) => { if (!el._dragged) { selectField(field.id); } el._dragged = false; });
+    function startDrag(e) {
+        if (e.target.classList.contains('resize-handle')) return startResize(e);
+        e.preventDefault();
+        const startX = e.clientX, startY = e.clientY;
+        const origX = field.x, origY = field.y;
+        function move(ev) {
+            const dx = (ev.clientX - startX) / ZOOM;
+            const dy = (ev.clientY - startY) / ZOOM;
+            field.x = Math.max(0, origX + dx);
+            field.y = Math.max(0, origY - dy);  // PDF y is from bottom
+            el.style.left = (field.x * ZOOM) + 'px';
+            el.style.top = ((TEMPLATE.page_height - field.y - field.height) * ZOOM) + 'px';
+            el._dragged = true;
+            if (SELECTED_FIELD === field.id) updateCoordsInPanel(field);
+        }
+        function up() {
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', up);
+            if (el._dragged) saveField(field);
+        }
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+    }
+    function startResize(e) {
+        e.preventDefault(); e.stopPropagation();
+        const startX = e.clientX, startY = e.clientY;
+        const origW = field.width, origH = field.height;
+        function move(ev) {
+            const dx = (ev.clientX - startX) / ZOOM;
+            const dy = (ev.clientY - startY) / ZOOM;
+            field.width = Math.max(30, origW + dx);
+            field.height = Math.max(12, origH + dy);
+            el.style.width = (field.width * ZOOM) + 'px';
+            el.style.height = (field.height * ZOOM) + 'px';
+            if (SELECTED_FIELD === field.id) updateCoordsInPanel(field);
+        }
+        function up() {
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', up);
+            saveField(field);
+        }
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+    }
+}
+function selectField(id) {
+    SELECTED_FIELD = id;
+    document.querySelectorAll('.pdf-field').forEach(el => el.classList.toggle('active', el.dataset.id == id));
+    const f = TEMPLATE.fields.find(x => x.id == id);
+    if (!f) { document.getElementById('propsPanel').innerHTML = 'Select a field.'; return; }
+    document.getElementById('propsPanel').innerHTML = `
+        <div class="space-y-2">
+            <div><label class="form-label">Label</label><input id="p_label" class="form-input" value="${escapeHtml(f.label)}"></div>
+            <div><label class="form-label">Field Key</label><input id="p_field_key" class="form-input" value="${escapeHtml(f.field_key)}" ${f.field_type=='static'?'disabled':''}></div>
+            ${f.field_type=='static'?`<div><label class="form-label">Static Value</label><textarea id="p_static_value" rows="2" class="form-textarea">${escapeHtml(f.static_value||'')}</textarea></div>`:''}
+            <div class="grid grid-cols-2 gap-2">
+                <div><label class="form-label">X (pt)</label><input id="p_x" type="number" step="0.1" class="form-input" value="${f.x.toFixed(1)}"></div>
+                <div><label class="form-label">Y (pt)</label><input id="p_y" type="number" step="0.1" class="form-input" value="${f.y.toFixed(1)}"></div>
+                <div><label class="form-label">Width</label><input id="p_width" type="number" step="0.1" class="form-input" value="${f.width.toFixed(1)}"></div>
+                <div><label class="form-label">Height</label><input id="p_height" type="number" step="0.1" class="form-input" value="${f.height.toFixed(1)}"></div>
+                <div><label class="form-label">Font Size</label><input id="p_font_size" type="number" step="0.5" class="form-input" value="${f.font_size}"></div>
+                <div><label class="form-label">Color</label><input id="p_color" type="color" class="form-input" value="${f.color}"></div>
+            </div>
+            <div class="flex gap-2 text-xs">
+                <label class="flex items-center gap-1"><input id="p_font_bold" type="checkbox" ${f.font_bold?'checked':''}> Bold</label>
+                <label class="flex items-center gap-1"><input id="p_font_italic" type="checkbox" ${f.font_italic?'checked':''}> Italic</label>
+                <select id="p_align" class="form-select" style="font-size:11px;padding:2px 4px"><option ${f.align=='left'?'selected':''}>left</option><option ${f.align=='center'?'selected':''}>center</option><option ${f.align=='right'?'selected':''}>right</option></select>
+            </div>
+            <div class="flex gap-2 pt-2 border-t mt-2">
+                <button onclick="applyProps()" class="btn btn-primary btn-sm flex-1 justify-center">Apply</button>
+                <button onclick="deleteField(${f.id})" class="btn btn-outline btn-sm text-red-600"><i class="fa-solid fa-trash"></i></button>
+            </div>
+        </div>`;
+}
+function updateCoordsInPanel(f) {
+    if (document.getElementById('p_x')) {
+        document.getElementById('p_x').value = f.x.toFixed(1);
+        document.getElementById('p_y').value = f.y.toFixed(1);
+        document.getElementById('p_width').value = f.width.toFixed(1);
+        document.getElementById('p_height').value = f.height.toFixed(1);
+    }
+}
+async function applyProps() {
+    const f = TEMPLATE.fields.find(x => x.id == SELECTED_FIELD);
+    if (!f) return;
+    f.label = document.getElementById('p_label').value;
+    if (!document.getElementById('p_field_key').disabled) f.field_key = document.getElementById('p_field_key').value;
+    if (document.getElementById('p_static_value')) f.static_value = document.getElementById('p_static_value').value;
+    f.x = parseFloat(document.getElementById('p_x').value);
+    f.y = parseFloat(document.getElementById('p_y').value);
+    f.width = parseFloat(document.getElementById('p_width').value);
+    f.height = parseFloat(document.getElementById('p_height').value);
+    f.font_size = parseFloat(document.getElementById('p_font_size').value);
+    f.color = document.getElementById('p_color').value;
+    f.font_bold = document.getElementById('p_font_bold').checked;
+    f.font_italic = document.getElementById('p_font_italic').checked;
+    f.align = document.getElementById('p_align').value;
+    await saveField(f);
+    renderCanvas();
+    selectField(f.id);
+    toast('Field updated');
+}
+async function saveField(f) {
+    await axios.put(`/api/documents/fields/${f.id}`, f);
+}
+async function deleteField(id) {
+    if (!confirm('Delete this field?')) return;
+    await axios.delete(`/api/documents/fields/${id}`);
+    TEMPLATE.fields = TEMPLATE.fields.filter(x => x.id != id);
+    SELECTED_FIELD = null;
+    renderCanvas();
+    document.getElementById('propsPanel').innerHTML = 'Select a field.';
+}
+document.getElementById('zoomSelect').addEventListener('change', (e) => {
+    ZOOM = parseFloat(e.target.value);
+    renderCanvas();
+});
+document.getElementById('bgUpload').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+        await axios.post(`/api/documents/templates/${TPL_ID}/background`, fd);
+        toast('Background uploaded');
+        await loadAll();
+    } catch (err) { toast(err.response?.data?.detail || 'Upload failed', 'error'); }
+});
+async function previewPDF() {
+    let recordId = prompt('Enter record ID to use for preview data (leave blank for empty preview):');
+    const url = `/api/documents/templates/${TPL_ID}/generate${recordId ? '?record_id='+recordId : ''}`;
+    window.open(url, '_blank');
+}
+loadAll();
+</script>
+{% endblock %}

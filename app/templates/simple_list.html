@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · {{ company_name }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid {{ icon }} text-blue-600"></i> {{ title }}
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">Manage {{ title|lower }}</p>
+    </div>
+    <button onclick="openNewModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+        <i class="fa-solid fa-plus"></i> Add {{ singular }}
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="relative">
+            <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+            <input id="searchInput" type="text" placeholder="Search…" class="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-72 focus:outline-none focus:border-blue-500">
+        </div>
+        <span id="totalCount" class="text-xs text-slate-500"></span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    {% for key, label in columns %}<th>{{ label }}</th>{% endfor %}
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="rowsBody">
+                <tr><td colspan="{{ columns|length + 1 }}" class="text-center py-10 text-slate-400">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="formModal" class="hidden fixed inset-0 bg-slate-900/50 z-40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-lg shadow-xl">
+        <div class="border-b border-slate-100 px-5 py-3 flex items-center justify-between">
+            <h3 id="modalTitle" class="font-semibold text-slate-800">Add {{ singular }}</h3>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-5">
+            <div id="modalFields" class="space-y-3"></div>
+            <div id="modalError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2"></div>
+        </div>
+        <div class="border-t border-slate-100 px-5 py-3 flex justify-end gap-2">
+            <button onclick="closeModal()" class="px-4 py-2 text-sm font-medium border border-slate-300 rounded-lg hover:bg-slate-50">Cancel</button>
+            <button onclick="saveItem()" id="saveBtn" class="px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API = "{{ api }}";
+const COLUMNS = {{ columns|tojson }};
+const SINGULAR = "{{ singular }}";
+let editingId = null;
+let rows = [];
+
+const FIELD_MAP = {
+    'name': 'text', 'code': 'text', 'description': 'textarea', 'company': 'text',
+    'country': 'text', 'city': 'text', 'province': 'text', 'address': 'textarea',
+    'phone': 'text', 'email': 'email', 'note': 'textarea', 'amount': 'number',
+    'first_name': 'text', 'last_name': 'text', 'cnic': 'text', 'mobile': 'text',
+};
+
+function fieldLabel(k) { return COLUMNS.find(c => c[0] === k)?.[1] || (k[0].toUpperCase() + k.slice(1).replace(/_/g,' ')); }
+
+async function load() {
+    const q = document.getElementById('searchInput').value.trim();
+    const url = API + (q ? '?q=' + encodeURIComponent(q) : '');
+    try {
+        const res = await axios.get(url);
+        rows = res.data.items || res.data || [];
+        document.getElementById('totalCount').textContent = (res.data.total ?? rows.length) + ' total';
+        render();
+    } catch (err) {
+        document.getElementById('rowsBody').innerHTML = `<tr><td colspan="${COLUMNS.length+1}" class="text-center py-10 text-rose-500">Failed to load: ${err.response?.data?.detail || err.message}</td></tr>`;
+    }
+}
+function render() {
+    const body = document.getElementById('rowsBody');
+    if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="${COLUMNS.length+1}" class="text-center py-10 text-slate-400">No records yet. Click "Add ${SINGULAR}" to create one.</td></tr>`;
+        return;
+    }
+    body.innerHTML = rows.map(r => `
+        <tr>
+            ${COLUMNS.map(([k,_]) => `<td>${r[k] ?? '<span class="text-slate-300">—</span>'}</td>`).join('')}
+            <td class="text-right whitespace-nowrap">
+                <button onclick='openEdit(${JSON.stringify(r)})' class="text-blue-600 hover:text-blue-800 mr-2"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="del(${r.id})" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+function openNewModal() {
+    editingId = null;
+    document.getElementById('modalTitle').textContent = `Add ${SINGULAR}`;
+    buildFields({});
+    document.getElementById('formModal').classList.remove('hidden');
+}
+function openEdit(row) {
+    editingId = row.id;
+    document.getElementById('modalTitle').textContent = `Edit ${SINGULAR}`;
+    buildFields(row);
+    document.getElementById('formModal').classList.remove('hidden');
+}
+function closeModal() {
+    document.getElementById('formModal').classList.add('hidden');
+    document.getElementById('modalError').classList.add('hidden');
+}
+function buildFields(row) {
+    const fields = COLUMNS.map(([k, label]) => {
+        const type = FIELD_MAP[k] || 'text';
+        const val = (row[k] ?? '').toString().replace(/"/g, '&quot;');
+        if (type === 'textarea')
+            return `<div><label class="form-label">${label}</label><textarea name="${k}" class="form-textarea" rows="2">${val}</textarea></div>`;
+        return `<div><label class="form-label">${label}</label><input type="${type}" name="${k}" value="${val}" class="form-input"></div>`;
+    }).join('');
+    document.getElementById('modalFields').innerHTML = fields;
+}
+async function saveItem() {
+    const payload = {};
+    document.querySelectorAll('#modalFields [name]').forEach(el => payload[el.name] = el.value);
+    const btn = document.getElementById('saveBtn');
+    const err = document.getElementById('modalError');
+    err.classList.add('hidden');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+        if (editingId) await axios.put(`${API}/${editingId}`, payload);
+        else await axios.post(API, payload);
+        closeModal(); load();
+    } catch (e) {
+        err.textContent = e.response?.data?.detail || 'Save failed';
+        err.classList.remove('hidden');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Save';
+    }
+}
+async function del(id) {
+    if (!confirm('Delete this record?')) return;
+    try {
+        await axios.delete(`${API}/${id}`);
+        load();
+    } catch (e) {
+        alert('Delete failed: ' + (e.response?.data?.detail || e.message));
+    }
+}
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', () => {
+    clearTimeout(searchTimer); searchTimer = setTimeout(load, 300);
+});
+load();
+</script>
+{% endblock %}

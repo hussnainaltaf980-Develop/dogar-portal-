@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Users · {{ company_name }}{% endblock %}
+{% block page_title %}User Management{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-user-group text-blue-600"></i> Portal Users
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">Manage who can access this portal and their roles.</p>
+    </div>
+    <button onclick="openUserModal()" class="btn btn-primary"><i class="fa-solid fa-plus"></i> New User</button>
+</div>
+
+<div class="card overflow-hidden">
+    <div class="card-header">
+        <span class="font-semibold text-slate-700 text-sm">All Users</span>
+        <span id="userCount" class="text-xs text-slate-400"></span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Phone</th><th class="text-right">Actions</th></tr></thead>
+            <tbody id="usersBody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadUsers() {
+    const r = await axios.get('/api/users/');
+    const countEl = document.getElementById('userCount');
+    if (countEl) countEl.textContent = r.data.length + ' users';
+    document.getElementById('usersBody').innerHTML = r.data.map(u => `
+        <tr>
+            <td class="font-mono text-xs">#${u.id}</td>
+            <td class="font-semibold">${escapeHtml(u.name)}</td>
+            <td>${escapeHtml(u.email)}</td>
+            <td><span class="badge ${u.role=='admin'?'badge-issued':'badge-active'}">${u.role}</span></td>
+            <td>${u.is_active?'<span class="badge badge-active">Active</span>':'<span class="badge badge-inactive">Disabled</span>'}</td>
+            <td>${escapeHtml(u.phone||'—')}</td>
+            <td class="text-right">
+                <button onclick="editUser(${u.id}, '${escapeHtml(u.name)}', '${escapeHtml(u.email)}', '${u.role}', ${u.is_active}, '${escapeHtml(u.phone||'')}')" class="btn btn-outline btn-sm"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteUser(${u.id})" class="btn btn-outline btn-sm text-red-600"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
+function userForm(u={}) {
+    return `<form id="userForm" class="p-6">
+        <h3 class="text-lg font-semibold mb-3">${u.id?'Edit':'New'} User</h3>
+        <div class="grid grid-cols-2 gap-3">
+            <div class="col-span-2"><label class="form-label">Name *</label><input name="name" required class="form-input" value="${escapeHtml(u.name||'')}"></div>
+            <div class="col-span-2"><label class="form-label">Email *</label><input name="email" type="email" required class="form-input" value="${escapeHtml(u.email||'')}"></div>
+            <div><label class="form-label">Role</label><select name="role" class="form-select"><option value="staff" ${u.role=='staff'?'selected':''}>Staff</option><option value="admin" ${u.role=='admin'?'selected':''}>Admin</option></select></div>
+            <div><label class="form-label">Phone</label><input name="phone" class="form-input" value="${escapeHtml(u.phone||'')}"></div>
+            <div class="col-span-2"><label class="form-label">${u.id?'New Password (leave blank to keep)':'Password *'}</label><input name="password" type="password" ${u.id?'':'required'} class="form-input"></div>
+            <div class="col-span-2"><label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" ${u.is_active!==false?'checked':''}> Active</label></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-4 pt-4 border-t"><button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+    </form>`;
+}
+function openUserModal(u={}) {
+    openModal(userForm(u));
+    document.getElementById('userForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = Object.fromEntries(new FormData(e.target).entries());
+        fd.is_active = e.target.is_active.checked;
+        if (u.id && !fd.password) delete fd.password;
+        try {
+            if (u.id) await axios.put(`/api/users/${u.id}`, fd);
+            else await axios.post('/api/users/', fd);
+            closeModal(); await loadUsers(); toast('User saved');
+        } catch (err) { toast(err.response?.data?.detail || 'Failed', 'error'); }
+    });
+}
+function editUser(id, name, email, role, is_active, phone) {
+    openUserModal({id, name, email, role, is_active, phone});
+}
+async function deleteUser(id) {
+    if (!confirm('Delete this user?')) return;
+    await axios.delete(`/api/users/${id}`); await loadUsers();
+}
+loadUsers();
+</script>
+{% endblock %}

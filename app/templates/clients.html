@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Clients · {{ company_name }}{% endblock %}
+{% block page_title %}Clients{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-regular fa-building text-blue-600"></i> Clients
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">Foreign sponsors / employer companies.</p>
+    </div>
+    <button onclick="openNewModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+        <i class="fa-solid fa-plus"></i> Add Client
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="relative">
+            <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+            <input id="searchInput" type="text" placeholder="Search by company name..." class="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-72 focus:outline-none focus:border-blue-500">
+        </div>
+        <span id="totalCount" class="text-xs text-slate-500"></span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Company Name</th>
+                    <th>Type</th>
+                    <th>Country</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="rowsBody">
+                <tr class="loading-row"><td colspan="6">Loading clients…</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <!-- Pagination footer matching reference: N total · Page X of Y · 20 per page · Prev · Next -->
+    <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500" id="paginationBar">
+        <div id="pgInfo">—</div>
+        <div class="flex items-center gap-2">
+            <select id="pgSize" class="border border-slate-200 rounded px-2 py-1 text-xs">
+                <option value="10">10 per page</option>
+                <option value="20" selected>20 per page</option>
+                <option value="50">50 per page</option>
+                <option value="100">100 per page</option>
+            </select>
+            <button id="pgPrev" class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40" onclick="changePage(-1)">Prev</button>
+            <button id="pgNext" class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40" onclick="changePage(1)">Next</button>
+        </div>
+    </div>
+</div>
+
+<!-- New / Edit Client Modal -->
+<div id="formModal" class="hidden fixed inset-0 bg-slate-900/50 z-40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-2xl shadow-xl max-h-[90vh] flex flex-col">
+        <div class="border-b border-slate-100 px-5 py-3 flex items-center justify-between">
+            <h3 id="modalTitle" class="font-semibold text-slate-800">Add Client</h3>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-5 overflow-y-auto">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="col-span-2"><label class="form-label">Company / Client Name *</label><input id="f_company_name" class="form-input"></div>
+                <div>
+                    <label class="form-label">Type</label>
+                    <select id="f_client_type" class="form-select"><option>Company</option><option>Individual</option></select>
+                </div>
+                <div>
+                    <label class="form-label">Status</label>
+                    <select id="f_status" class="form-select"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+                </div>
+                <div><label class="form-label">Email</label><input id="f_email" type="email" class="form-input"></div>
+                <div><label class="form-label">Phone</label><input id="f_phone" class="form-input"></div>
+                <div class="col-span-2"><label class="form-label">Street</label><input id="f_street" class="form-input"></div>
+                <div><label class="form-label">City</label><input id="f_city" class="form-input"></div>
+                <div><label class="form-label">State / Province</label><input id="f_state" class="form-input"></div>
+                <div><label class="form-label">Country</label><input id="f_country" class="form-input" value="Pakistan"></div>
+                <div><label class="form-label">Opening Balance</label><input id="f_opening_balance" type="number" step="0.01" class="form-input" value="0"></div>
+                <div class="col-span-2"><label class="form-label">Notes</label><textarea id="f_notes" class="form-textarea" rows="2"></textarea></div>
+            </div>
+            <div id="modalError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2"></div>
+        </div>
+        <div class="border-t border-slate-100 px-5 py-3 flex justify-end gap-2">
+            <button onclick="closeModal()" class="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50">Cancel</button>
+            <button onclick="saveItem()" id="saveBtn" class="px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+let editingId = null;
+let currentPage = 1;
+
+async function load() {
+    const q = document.getElementById('searchInput').value.trim();
+    const perPage = parseInt(document.getElementById('pgSize').value) || 20;
+    const limit = perPage;
+    const skip = (currentPage - 1) * perPage;
+    
+    let url = `/api/clients/?skip=${skip}&limit=${limit}`;
+    if (q) {
+        url += `&q=${encodeURIComponent(q)}`;
+    }
+    
+    try {
+        const res = await axios.get(url);
+        const rows = res.data.items || res.data || [];
+        const total = res.data.total ?? rows.length;
+        const totalPages = Math.ceil(total / perPage) || 1;
+        
+        document.getElementById('totalCount').textContent = total + ' clients';
+        
+        // Pagination info
+        document.getElementById('pgInfo').textContent = `${total} total · Page ${currentPage} of ${totalPages}`;
+        document.getElementById('pgPrev').disabled = currentPage <= 1;
+        document.getElementById('pgNext').disabled = currentPage >= totalPages;
+        
+        const body = document.getElementById('rowsBody');
+        if (!rows.length) {
+            body.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-slate-400">No clients yet. Click "Add Client" to create one.</td></tr>`;
+            return;
+        }
+        body.innerHTML = rows.map(c => `
+            <tr class="cursor-pointer" onclick="window.location='/clients/${c.id}'">
+                <td><div class="font-semibold text-blue-700 hover:underline">${c.company_name}</div></td>
+                <td><span class="text-xs text-slate-500">${c.client_type || 'Company'}</span></td>
+                <td>${c.country || '—'}</td>
+                <td class="font-mono text-[12.5px]">${c.phone || '—'}</td>
+                <td><span class="badge badge-${c.status === 'active' ? 'active' : 'inactive'}">${c.status || 'active'}</span></td>
+                <td class="text-right whitespace-nowrap" onclick="event.stopPropagation()">
+                    <button onclick='openEdit(${JSON.stringify(c)})' class="text-blue-600 hover:text-blue-800 mr-2"><i class="fa-solid fa-pen"></i></button>
+                    <button onclick="del(${c.id})" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        document.getElementById('rowsBody').innerHTML = `<tr><td colspan="6" class="text-center py-10 text-rose-500">Failed to load</td></tr>`;
+    }
+}
+function changePage(delta) {
+    currentPage += delta;
+    if (currentPage < 1) currentPage = 1;
+    load();
+}
+document.getElementById('pgSize').addEventListener('change', () => { currentPage = 1; load(); });
+
+function openNewModal() { editingId = null; document.getElementById('modalTitle').textContent = 'Add Client'; clearForm(); document.getElementById('formModal').classList.remove('hidden'); }
+function openEdit(c) {
+    editingId = c.id;
+    document.getElementById('modalTitle').textContent = 'Edit Client';
+    ['company_name','client_type','status','email','phone','street','city','state','country','opening_balance','notes'].forEach(k => {
+        const el = document.getElementById('f_'+k);
+        if (el) el.value = c[k] ?? '';
+    });
+    document.getElementById('formModal').classList.remove('hidden');
+}
+function clearForm() {
+    ['company_name','email','phone','street','city','state','notes'].forEach(k => document.getElementById('f_'+k).value = '');
+    document.getElementById('f_country').value = 'Pakistan';
+    document.getElementById('f_client_type').value = 'Company';
+    document.getElementById('f_status').value = 'active';
+    document.getElementById('f_opening_balance').value = '0';
+}
+function closeModal() { document.getElementById('formModal').classList.add('hidden'); document.getElementById('modalError').classList.add('hidden'); }
+async function saveItem() {
+    const payload = {};
+    ['company_name','client_type','status','email','phone','street','city','state','country','notes'].forEach(k => payload[k] = document.getElementById('f_'+k).value);
+    payload.opening_balance = parseFloat(document.getElementById('f_opening_balance').value) || 0;
+    const btn = document.getElementById('saveBtn'); const err = document.getElementById('modalError');
+    err.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+        if (editingId) await axios.put(`/api/clients/${editingId}`, payload);
+        else await axios.post('/api/clients/', payload);
+        closeModal(); load();
+    } catch (e) {
+        err.textContent = e.response?.data?.detail || 'Save failed';
+        err.classList.remove('hidden');
+    } finally { btn.disabled = false; btn.textContent = 'Save'; }
+}
+async function del(id) {
+    if (!confirm('Delete this client and all their demands?')) return;
+    try { await axios.delete(`/api/clients/${id}`); load(); }
+    catch (e) { alert(e.response?.data?.detail || 'Failed'); }
+}
+let st;
+document.getElementById('searchInput').addEventListener('input', () => { 
+    clearTimeout(st); 
+    st = setTimeout(() => { currentPage = 1; load(); }, 300); 
+});
+load();
+</script>
+{% endblock %}

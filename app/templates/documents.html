@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Documents · {{ company_name }}{% endblock %}
+{% block page_title %}Documents{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-regular fa-file-pdf text-blue-600"></i> Documents
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">PDF templates with coordinate-mapped fields on real form backgrounds.</p>
+    </div>
+    <div class="flex gap-2">
+        <button onclick="openNewModal()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+            <i class="fa-solid fa-plus"></i> New Template
+        </button>
+    </div>
+</div>
+
+<div class="card mb-5">
+    <div class="card-header"><h3 class="font-semibold text-slate-800 text-sm"><i class="fa-solid fa-thumbtack text-blue-600 mr-1"></i> System Templates</h3></div>
+    <div class="p-4 flex flex-wrap gap-2" id="systemPills">
+        <span class="text-xs text-slate-400">Loading...</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="flex items-center gap-3">
+            <div class="relative">
+                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                <input id="searchInput" type="text" placeholder="Search by template name..." class="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-72 focus:outline-none focus:border-blue-500">
+            </div>
+            <select id="dsFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+                <option value="">All Sources</option>
+                <option value="candidate">Candidate</option>
+                <option value="demand">Demand</option>
+                <option value="client">Client</option>
+                <option value="agent">Agent</option>
+                <option value="custom">Custom</option>
+            </select>
+        </div>
+        <span id="totalCount" class="text-xs text-slate-500"></span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead><tr>
+                <th>Template Name</th>
+                <th>Category</th>
+                <th>Data Source</th>
+                <th>Background</th>
+                <th class="text-right">Fields</th>
+                <th>Status</th>
+                <th class="w-32">Actions</th>
+            </tr></thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl w-[560px]">
+        <div class="p-5 border-b flex items-center justify-between">
+            <h3 class="font-bold text-slate-800">New Template</h3>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="newForm" class="p-5 space-y-3 text-sm">
+            <div>
+                <label class="form-label">Template Name *</label>
+                <input name="name" required class="form-input">
+            </div>
+            <div>
+                <label class="form-label">Description</label>
+                <textarea name="description" rows="2" class="form-textarea"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Category</label>
+                    <select name="category" class="form-select">
+                        <option value="Protector Documents">Protector Documents</option>
+                        <option value="Visa Process">Visa Process</option>
+                        <option value="custom">Custom</option>
+                        <option value="bank">Bank</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Data Source</label>
+                    <select name="data_source" class="form-select">
+                        <option value="candidate">Candidate</option>
+                        <option value="demand">Demand</option>
+                        <option value="client">Client</option>
+                        <option value="agent">Agent</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Create &amp; Customize</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let TEMPLATES = [];
+
+async function loadTemplates() {
+    const { data } = await axios.get('/api/documents/templates');
+    TEMPLATES = data || [];
+    document.getElementById('totalCount').textContent = `${TEMPLATES.length} total`;
+
+    const systemPills = document.getElementById('systemPills');
+    const systemSet = TEMPLATES.filter(t => t.category !== 'custom' || (t.background_image && t.background_image.length));
+    if (systemSet.length === 0) {
+        systemPills.innerHTML = '<span class="text-xs text-slate-400">No system templates yet - initialise the database.</span>';
+    } else {
+        systemPills.innerHTML = systemSet.map(t => `
+            <a href="/documents/customize/${t.id}" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition">
+                <i class="fa-regular fa-file-pdf"></i> ${t.name}
+            </a>`).join('');
+    }
+    renderTable();
+}
+
+function renderTable() {
+    const q = (document.getElementById('searchInput').value || '').toLowerCase();
+    const ds = document.getElementById('dsFilter').value;
+    let items = TEMPLATES;
+    if (q) items = items.filter(t => (t.name || '').toLowerCase().includes(q));
+    if (ds) items = items.filter(t => t.data_source === ds);
+
+    const tbody = document.getElementById('tbody');
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-slate-400 py-10">No templates match this filter.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = items.map(t => `
+        <tr class="hover:bg-slate-50">
+            <td><div class="font-semibold text-slate-800">${t.name||''}</div><div class="text-xs text-slate-500">${t.description||''}</div></td>
+            <td><span class="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-700">${t.category||'—'}</span></td>
+            <td><span class="px-2 py-0.5 rounded text-xs bg-violet-50 text-violet-700">${t.data_source||'—'}</span></td>
+            <td>${t.background_image ? `<span class="text-emerald-600 text-xs"><i class="fa-solid fa-check"></i> ${t.background_image}</span>` : '<span class="text-slate-400 text-xs">—</span>'}</td>
+            <td class="text-right">${(t.fields||[]).length}</td>
+            <td><span class="px-2 py-0.5 rounded-full text-xs ${t.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}">${t.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+                <a href="/documents/customize/${t.id}" title="Configure field positions" class="text-blue-600 hover:text-blue-700 mr-2"><i class="fa-regular fa-pen-to-square"></i></a>
+                <button onclick="printTemplate(${t.id})" title="Preview print (data overlay)" class="text-violet-600 hover:text-violet-700 mr-2"><i class="fa-solid fa-print"></i></button>
+                <button onclick="deleteTemplate(${t.id})" title="Delete" class="text-rose-600 hover:text-rose-700"><i class="fa-regular fa-trash-can"></i></button>
+            </td>
+        </tr>`).join('');
+}
+
+function openNewModal() {
+    document.getElementById('newForm').reset();
+    document.getElementById('modal').classList.remove('hidden');
+    document.getElementById('modal').classList.add('flex');
+}
+function closeModal() {
+    document.getElementById('modal').classList.add('hidden');
+    document.getElementById('modal').classList.remove('flex');
+}
+document.getElementById('newForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    try {
+        const { data } = await axios.post('/api/documents/templates', payload);
+        closeModal();
+        window.location = `/documents/customize/${data.id}`;
+    } catch (err) {
+        alert((err.response && err.response.data && err.response.data.detail) || 'Failed to create');
+    }
+});
+
+async function deleteTemplate(id) {
+    if (!confirm('Delete this template and all its fields?')) return;
+    await axios.delete(`/api/documents/templates/${id}`);
+    loadTemplates();
+}
+
+document.getElementById('searchInput').addEventListener('input', renderTable);
+document.getElementById('dsFilter').addEventListener('change', renderTable);
+
+function printTemplate(id) {
+    // Opens a data-overlay print preview (real-image + candidate data overlaid)
+    // No record_id here — opens without a specific record so user can see
+    // the template structure. For real prints, use the candidate/demand Print button.
+    showGlobalPrintModal(id, '', 'Template Block Structure');
+}
+
+loadTemplates();
+</script>
+{% endblock %}

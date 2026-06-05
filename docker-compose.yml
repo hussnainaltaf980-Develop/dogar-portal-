@@ -1,0 +1,47 @@
+# ======================================================================
+# Dogar Trading Corporation Portal — Docker Compose stack
+# ======================================================================
+# Usage:
+#     # 1. Generate a strong SECRET_KEY and admin password, write them to .env:
+#     cp .env.example .env
+#     sed -i "s|^SECRET_KEY=.*|SECRET_KEY=\"$(openssl rand -hex 32)\"|" .env
+#     # 2. Pick a strong admin password (>=12 chars) and put it in .env
+#     # 3. Start the stack:
+#     docker compose up -d
+#     # 4. Tail logs:
+#     docker compose logs -f portal
+#     # 5. Stop:
+#     docker compose down
+# ======================================================================
+
+services:
+  portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dogar-portal:latest
+    container_name: dogar-portal
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Force production hardening — config.py refuses to boot with weak
+      # secrets when this is set, regardless of what .env says.
+      ENV: production
+    volumes:
+      - dogar-data:/app/data                              # SQLite DB
+      - dogar-uploads:/app/app/static/uploads             # candidate photos, OCR'd passports
+      - dogar-generated:/app/app/static/uploads/generated_pdfs
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/", "-o", "/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  dogar-data:
+  dogar-uploads:
+  dogar-generated:

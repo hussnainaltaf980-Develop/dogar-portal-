@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Contact Support · {{ company_name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
+    <style>body { font-family: 'Inter', system-ui, sans-serif; background-color: #f8fafc; }</style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
+
+<header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+    <a href="/login" class="flex items-center gap-2">
+        <img src="/static/img/logo-sm.png" alt="" class="h-9 w-auto">
+        <span class="font-bold text-slate-800">{{ company_name }}</span>
+    </a>
+    <a href="/login" class="text-sm text-blue-600 hover:underline"><i class="fa-solid fa-arrow-left"></i> Back to Sign In</a>
+</header>
+
+<main class="flex-1 px-4 py-8">
+    <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-8">
+            <div class="inline-flex w-14 h-14 rounded-full bg-blue-50 text-blue-600 items-center justify-center mb-3">
+                <i class="fa-solid fa-headset text-2xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-800">Contact Support</h1>
+            <p class="text-sm text-slate-500 mt-1">Our team at HussnainTechVertex is here to help — 24/7 portal support.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <!-- Left: contact info cards -->
+            <div class="space-y-4">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-phone"></i></div>
+                        <div>
+                            <div class="text-xs text-slate-500">Phone / WhatsApp</div>
+                            <a href="tel:+923028808488" class="font-semibold text-slate-800 text-sm hover:text-blue-600">+92 302 8808488</a>
+                            <div class="text-xs text-slate-500 mt-0.5">Mon–Sat · 09:00–20:00 PKT</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fa-regular fa-envelope"></i></div>
+                        <div>
+                            <div class="text-xs text-slate-500">Email</div>
+                            <a href="mailto:info@hussnaintechvertex.site" class="font-semibold text-slate-800 text-sm hover:text-blue-600 break-all">info@hussnaintechvertex.site</a>
+                            <div class="text-xs text-slate-500 mt-0.5">Reply within 24 hours</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center"><i class="fa-brands fa-whatsapp"></i></div>
+                        <div>
+                            <div class="text-xs text-slate-500">WhatsApp Chat</div>
+                            <a href="https://wa.me/923028808488" target="_blank" class="font-semibold text-slate-800 text-sm hover:text-blue-600">+92 302 8808488</a>
+                            <div class="text-xs text-slate-500 mt-0.5">Quick replies — click to open chat</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center"><i class="fa-solid fa-building"></i></div>
+                        <div>
+                            <div class="text-xs text-slate-500">Powered by</div>
+                            <div class="font-semibold text-slate-800 text-sm">HussnainTechVertex Pvt Ltd.</div>
+                            <div class="text-xs text-slate-500 mt-0.5">Software · OEP Portals · Custom Apps</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: message form -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h2 class="font-bold text-slate-800 text-lg mb-1">Send us a Message</h2>
+                    <p class="text-sm text-slate-500 mb-5">We typically respond within a few business hours.</p>
+
+                    <form id="supportForm" class="grid grid-cols-2 gap-4 text-sm">
+                        <label class="block">
+                            <span class="text-slate-600 text-[13px]">Your Name</span>
+                            <input name="name" required class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Full name">
+                        </label>
+                        <label class="block">
+                            <span class="text-slate-600 text-[13px]">Email *</span>
+                            <input name="email" type="email" required class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="you@example.com">
+                        </label>
+                        <label class="block">
+                            <span class="text-slate-600 text-[13px]">Phone</span>
+                            <input name="phone" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="+92 ...">
+                        </label>
+                        <label class="block">
+                            <span class="text-slate-600 text-[13px]">Subject</span>
+                            <input name="subject" class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="How can we help?">
+                        </label>
+                        <label class="block col-span-2">
+                            <span class="text-slate-600 text-[13px]">Message *</span>
+                            <textarea name="message" rows="6" required class="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Describe your issue or question in detail..."></textarea>
+                        </label>
+                        <div id="msg" class="hidden col-span-2 text-[13px] rounded-lg p-3"></div>
+                        <div class="col-span-2 flex justify-end">
+                            <button type="submit" id="submitBtn" class="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold text-sm px-5 py-2.5 rounded-lg">
+                                <i class="fa-regular fa-paper-plane mr-1"></i> Send Message
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer class="bg-white border-t border-slate-200 px-6 py-3 text-center text-[12px] text-slate-500">
+    &copy; 2025 {{ company_name }} &middot; Powered by <span class="font-semibold text-slate-700">HussnainTechVertex Pvt Ltd.</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+<script>
+document.getElementById('supportForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    const msg = document.getElementById('msg');
+    const btn = document.getElementById('submitBtn');
+    msg.classList.add('hidden');
+    btn.disabled = true; btn.textContent = 'Sending...';
+    try {
+        const { data } = await axios.post('/api/auth/support-message', payload);
+        msg.className = 'col-span-2 text-[13px] rounded-lg p-3 bg-emerald-50 border border-emerald-200 text-emerald-800';
+        msg.innerHTML = '<i class="fa-solid fa-check-circle"></i> ' + data.message;
+        msg.classList.remove('hidden');
+        e.target.reset();
+    } catch (err) {
+        msg.className = 'col-span-2 text-[13px] rounded-lg p-3 bg-rose-50 border border-rose-200 text-rose-800';
+        msg.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + ((err.response && err.response.data && err.response.data.detail) || 'Failed.');
+        msg.classList.remove('hidden');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fa-regular fa-paper-plane mr-1"></i> Send Message';
+    }
+});
+</script>
+</body>
+</html>

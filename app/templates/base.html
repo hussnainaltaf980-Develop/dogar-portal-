@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ company_name }}{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="icon" type="image/png" href="/static/img/favicon.png">
+    <script>
+      // 1. Recover token and sync links for iframe auth reliability
+      (function() {
+          const urlParams = new URLSearchParams(window.location.search);
+          let token = urlParams.get('token');
+          if (token) {
+              localStorage.setItem('access_token', token);
+          } else {
+              token = localStorage.getItem('access_token');
+          }
+          if (token) {
+              document.cookie = "access_token=" + token + "; path=/; max-age=86400; SameSite=None; Secure";
+              
+              document.addEventListener('DOMContentLoaded', function() {
+                  if (typeof axios !== 'undefined') {
+                      axios.defaults.headers.common['Authorization'] = 'Bearer ' + token;
+                  }
+                  
+                  // Sync URL parameters for normal GET links inside iframe
+                  const links = document.querySelectorAll('a[href]');
+                  links.forEach(link => {
+                      const href = link.getAttribute('href');
+                      if (href && (href.startsWith('/') || href.startsWith(window.location.origin)) && !href.includes('token=')) {
+                          const separator = href.includes('?') ? '&' : '?';
+                          link.setAttribute('href', href + separator + 'token=' + token);
+                      }
+                  });
+              });
+          }
+      })();
+
+      // 2. Load theme instantly from localStorage to avoid screen flashing
+      const cachedTheme = localStorage.getItem('theme') || 'corporate-blue';
+      const isGreen = cachedTheme === 'forest-green';
+      if (isGreen) {
+          document.documentElement.classList.add('theme-forest-green');
+          document.addEventListener('DOMContentLoaded', () => {
+              document.body.classList.add('theme-forest-green');
+          });
+      }
+
+      // 3. Configure Tailwind config based on current theme
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                primary: isGreen ? '#16a34a' : '#2563eb',
+                'primary-dark': isGreen ? '#15803d' : '#1d4ed8',
+                'primary-light': isGreen ? '#dcfce7' : '#dbeafe',
+                blue: isGreen ? '#16a34a' : '#2563eb',
+                'blue-dark': isGreen ? '#15803d' : '#1d4ed8',
+                'blue-light': isGreen ? '#dcfce7' : '#dbeafe',
+                green: isGreen ? '#16a34a' : '#2563eb',
+                'green-dark': isGreen ? '#15803d' : '#1d4ed8',
+                'green-light': isGreen ? '#dcfce7' : '#dbeafe',
+              },
+              // Swap the default tailwind blue to green on forest-green theme
+              blue: isGreen ? {
+                50: '#f0fdf4',
+                100: '#dcfce7',
+                200: '#bbf7d0',
+                300: '#86efac',
+                400: '#4ade80',
+                500: '#16a34a',
+                600: '#16a34a',
+                700: '#15803d',
+                800: '#166534',
+                900: '#14532d',
+              } : {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                200: '#bfdbfe',
+                300: '#93c5fd',
+                400: '#60a5fa',
+                500: '#3b82f6',
+                600: '#2563eb',
+                700: '#1d4ed8',
+                800: '#1e40af',
+                900: '#1e3a8a',
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        /* Forest Green Theme Overrides for custom components */
+        .theme-forest-green .btn-primary { background-color: #16a34a !important; }
+        .theme-forest-green .btn-primary:hover { background-color: #15803d !important; }
+        .theme-forest-green .form-input:focus, 
+        .theme-forest-green .form-select:focus, 
+        .theme-forest-green .form-textarea:focus {
+            border-color: #16a34a !important;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15) !important;
+        }
+        .theme-forest-green .nav-active { background-color: #dcfce7 !important; color: #15803d !important; }
+        .theme-forest-green .nav-active i { color: #15803d !important; }
+        .theme-forest-green .nav-sub-active { background-color: #dcfce7 !important; color: #15803d !important; }
+        .theme-forest-green .btn-outline:hover { border-color: #16a34a !important; color: #16a34a !important; }
+        .theme-forest-green .pdf-field { border-color: #16a34a !important; background-color: rgba(22, 163, 74, 0.08) !important; color: #16a34a !important; }
+        .theme-forest-green .pdf-field:hover, .theme-forest-green .pdf-field.active { border-color: #15803d !important; background-color: rgba(21, 101, 192, 0.15) !important; color: #15803d !important; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased {% if flyout %}bg-white{% endif %}">
+
+{% block layout %}
+<div class="flex min-h-screen">
+    {% if not flyout %}
+    <!-- ============ SIDEBAR (white, exact match to DEMO OEP) ============ -->
+    <aside class="w-60 bg-white border-r border-slate-200 fixed h-screen overflow-y-auto z-30 flex flex-col" id="sidebar">
+        <!-- Logo header -->
+        <div class="px-4 py-4 border-b border-slate-100 flex items-center gap-2">
+            <img src="/static/img/logo-sm.png" alt="Logo" class="w-10 h-10 object-contain">
+            <div class="leading-tight">
+                <div class="text-[13px] font-bold text-blue-700 tracking-tight">{{ short_name or (tenant.short_name if tenant else 'DOGAR TRADING') }}</div>
+                <div class="text-[9px] text-slate-500 font-semibold uppercase">{{ tenant.subtitle if tenant else 'Overseas Employment Promoters' }}</div>
+            </div>
+        </div>
+
+        <!-- Nav -->
+        <nav class="flex-1 px-3 py-3 space-y-0.5 text-[13px]">
+            {# === Dashboard === #}
+            <a href="/dashboard" class="nav-item {% if active == 'dashboard' %}nav-active{% endif %}">
+                <i class="fa-solid fa-gauge w-5 text-center"></i><span>Dashboard</span>
+            </a>
+
+            {# === Users (expandable) === #}
+            <div class="nav-group">
+                <button onclick="toggleSubmenu('users-sub', this)" class="nav-item w-full justify-between {% if active in ['users','login-history','roles'] %}nav-active-parent{% endif %}">
+                    <span class="flex items-center gap-3"><i class="fa-solid fa-user-group w-5 text-center"></i>Users</span>
+                    <i class="fa-solid fa-chevron-right text-[10px] transition-transform {% if active in ['users','login-history','roles'] %}rotate-90{% endif %}"></i>
+                </button>
+                <div id="users-sub" class="ml-7 mt-0.5 space-y-0.5 {% if active not in ['users','login-history','roles'] %}hidden{% endif %}">
+                    <a href="/users" class="nav-sub {% if active == 'users' %}nav-sub-active{% endif %}"><i class="fa-regular fa-user w-4 text-center"></i>Manage Users</a>
+                    <a href="/login-history" class="nav-sub {% if active == 'login-history' %}nav-sub-active{% endif %}"><i class="fa-regular fa-clock w-4 text-center"></i>Login history</a>
+                    <a href="/roles" class="nav-sub {% if active == 'roles' %}nav-sub-active{% endif %}"><i class="fa-solid fa-shield-halved w-4 text-center"></i>Roles</a>
+                </div>
+            </div>
+
+            <a href="/clients" class="nav-item {% if active == 'clients' %}nav-active{% endif %}">
+                <i class="fa-regular fa-building w-5 text-center"></i><span>Clients</span>
+            </a>
+            <a href="/demands" class="nav-item {% if active == 'demands' %}nav-active{% endif %}">
+                <i class="fa-regular fa-folder-open w-5 text-center"></i><span>Demand Files</span>
+            </a>
+            <a href="/candidates" class="nav-item {% if active == 'candidates' %}nav-active{% endif %}">
+                <i class="fa-solid fa-users w-5 text-center"></i><span>Candidates</span>
+            </a>
+            <a href="/visa-categories" class="nav-item {% if active == 'visa-categories' %}nav-active{% endif %}">
+                <i class="fa-solid fa-tags w-5 text-center"></i><span>Visa Categories</span>
+            </a>
+            <a href="/embassies" class="nav-item {% if active == 'embassies' %}nav-active{% endif %}">
+                <i class="fa-solid fa-landmark w-5 text-center"></i><span>Embassies</span>
+            </a>
+            <a href="/cities" class="nav-item {% if active == 'cities' %}nav-active{% endif %}">
+                <i class="fa-solid fa-location-dot w-5 text-center"></i><span>Cities</span>
+            </a>
+            <a href="/medical-centers" class="nav-item {% if active == 'medical-centers' %}nav-active{% endif %}">
+                <i class="fa-solid fa-stethoscope w-5 text-center"></i><span>Medical Centers</span>
+            </a>
+            <a href="/contacts" class="nav-item {% if active == 'contacts' %}nav-active{% endif %}">
+                <i class="fa-regular fa-address-book w-5 text-center"></i><span>Contacts</span>
+            </a>
+            {% if not features or features.get('documents', True) %}
+            <a href="/documents" class="nav-item {% if active == 'documents' %}nav-active{% endif %}">
+                <i class="fa-regular fa-file-lines w-5 text-center"></i><span>Documents</span>
+            </a>
+            <a href="/protector-letter" class="nav-item {% if active == 'protector_letter' %}nav-active{% endif %}">
+                <i class="fa-regular fa-envelope-open w-5 text-center"></i><span>Protector Letter</span>
+            </a>
+            {% endif %}
+            <a href="/reports" class="nav-item {% if active == 'reports' %}nav-active{% endif %}">
+                <i class="fa-solid fa-chart-line w-5 text-center"></i><span>Reports</span>
+            </a>
+
+            {# === Settings (expandable) — ADMIN ONLY (RBAC) === #}
+            {% if user and user.role == 'admin' and (not features or features.get('settings', True)) %}
+            <div class="nav-group">
+                <button onclick="toggleSubmenu('settings-sub', this)" class="nav-item w-full justify-between {% if active in ['settings','depositors','service-charges'] %}nav-active-parent{% endif %}">
+                    <span class="flex items-center gap-3"><i class="fa-solid fa-gear w-5 text-center"></i>Settings</span>
+                    <i class="fa-solid fa-chevron-right text-[10px] transition-transform {% if active in ['settings','depositors','service-charges'] %}rotate-90{% endif %}"></i>
+                </button>
+                <div id="settings-sub" class="ml-7 mt-0.5 space-y-0.5 {% if active not in ['settings','depositors','service-charges'] %}hidden{% endif %}">
+                    <a href="/settings" class="nav-sub {% if active == 'settings' %}nav-sub-active{% endif %}"><i class="fa-regular fa-building w-4 text-center"></i>General</a>
+                    <a href="/depositors" class="nav-sub {% if active == 'depositors' %}nav-sub-active{% endif %}"><i class="fa-solid fa-user-tie w-4 text-center"></i>Depositors</a>
+                    <a href="/service-charges" class="nav-sub {% if active == 'service-charges' %}nav-sub-active{% endif %}"><i class="fa-solid fa-dollar-sign w-4 text-center"></i>Service Charges</a>
+                </div>
+            </div>
+            {% endif %}
+
+            {# === Portal Admin / Multi-tenant (ADMIN ONLY) === #}
+            {% if user and user.role == 'admin' %}
+            <a href="/portal-admin" class="nav-item {% if active == 'portal-admin' %}nav-active{% endif %}">
+                <i class="fa-solid fa-sitemap w-5 text-center"></i><span>Portal Admin</span>
+            </a>
+            {% endif %}
+
+            {# === Legacy: Sub-Agents (real migrated data) === #}
+            <div class="pt-2 mt-2 border-t border-slate-100">
+                <p class="px-3 text-[9px] font-bold text-slate-400 uppercase mb-1 tracking-wider">Legacy Data</p>
+                <a href="/agents" class="nav-item {% if active == 'agents' %}nav-active{% endif %}">
+                    <i class="fa-solid fa-handshake w-5 text-center"></i><span>Sub-Agents</span>
+                </a>
+            </div>
+        </nav>
+    </aside>
+    <!-- Mobile sidebar dark overlay (click to close) -->
+    {% if not flyout %}<div id="sidebarOverlay" onclick="toggleSidebar()"></div>{% endif %}
+    {% endif %}
+
+    <!-- ============ MAIN CONTENT ============ -->
+    <div class="flex-1 {% if not flyout %}ml-60 flex flex-col{% endif %} min-h-screen">
+        {% if not flyout %}
+        <!-- Top bar — left: mobile toggle + page title · right: alerts + profile -->
+        <header class="topbar bg-white border-b border-slate-200 px-5 py-2 flex items-center justify-between sticky top-0 z-20 gap-4">
+            <!-- Topbar left: hamburger (mobile) + page title -->
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+                <button onclick="toggleSidebar()" id="sidebarToggle"
+                        class="w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 transition shrink-0 lg:hidden"
+                        title="Toggle sidebar">
+                    <i class="fa-solid fa-bars text-[15px]"></i>
+                </button>
+                <div class="min-w-0">
+                    <h2 class="topbar-page-title truncate">{% block page_title %}{% endblock %}</h2>
+                </div>
+            </div>
+            <!-- Topbar right: alerts + profile -->
+            <div class="flex items-center gap-3 relative shrink-0">
+                <!-- v8 SMART ALERTS — Notification bell with live unread badge -->
+                <button id="alertsBell" type="button" onclick="toggleAlertsPanel()"
+                        class="relative w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center transition"
+                        title="Reminders & Alerts (Ctrl+I)">
+                    <i class="fa-regular fa-bell text-slate-600 text-lg"></i>
+                    <span id="alertsBadge" class="hidden absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1
+                          bg-rose-500 text-white text-[10px] font-bold rounded-full
+                          flex items-center justify-center ring-2 ring-white">0</span>
+                </button>
+
+                <!-- Alerts dropdown panel -->
+                <div id="alertsPanel" class="hidden absolute right-12 top-full mt-2 w-[420px] max-h-[640px]
+                     bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col">
+                    <div class="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-rose-50 via-white to-amber-50 flex items-center justify-between">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-bell-concierge text-rose-500"></i>
+                                <h3 class="font-bold text-slate-800 text-sm">Reminders &amp; Alerts</h3>
+                                <span id="alertsTotalChip" class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-500 text-white font-semibold hidden">0</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mt-0.5">Smart engine — passport, medical, demand-match, missing-field</p>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <button onclick="rescanAlerts()" class="text-[11px] px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white font-semibold" title="Re-run smart scan">
+                                <i class="fa-solid fa-rotate"></i> Scan
+                            </button>
+                            <button onclick="markAllAlertsRead()" class="text-[11px] px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold" title="Mark all read">
+                                <i class="fa-solid fa-check-double"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Filter tabs -->
+                    <div id="alertsFilterTabs" class="flex border-b border-slate-100 bg-slate-50 text-[11px] font-semibold">
+                        <button data-filter="all"      onclick="setAlertsFilter('all')"      class="alerts-tab flex-1 px-2 py-2 text-slate-700 bg-white border-b-2 border-rose-500">All</button>
+                        <button data-filter="critical" onclick="setAlertsFilter('critical')" class="alerts-tab flex-1 px-2 py-2 text-slate-500 border-b-2 border-transparent hover:bg-white">Critical</button>
+                        <button data-filter="passport_expiry" onclick="setAlertsFilter('passport_expiry')" class="alerts-tab flex-1 px-2 py-2 text-slate-500 border-b-2 border-transparent hover:bg-white">Passport</button>
+                        <button data-filter="medical_expiry"  onclick="setAlertsFilter('medical_expiry')"  class="alerts-tab flex-1 px-2 py-2 text-slate-500 border-b-2 border-transparent hover:bg-white">Medical</button>
+                        <button data-filter="demand_match"    onclick="setAlertsFilter('demand_match')"    class="alerts-tab flex-1 px-2 py-2 text-slate-500 border-b-2 border-transparent hover:bg-white">Match</button>
+                        <button data-filter="missing_field"   onclick="setAlertsFilter('missing_field')"   class="alerts-tab flex-1 px-2 py-2 text-slate-500 border-b-2 border-transparent hover:bg-white">Missing</button>
+                    </div>
+                    <!-- List -->
+                    <div id="alertsList" class="flex-1 overflow-y-auto">
+                        <div class="text-center text-xs text-slate-400 py-10"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div>
+                    </div>
+                    <!-- Footer -->
+                    <div class="px-4 py-2 border-t border-slate-100 bg-slate-50 text-[11px] text-slate-500 flex items-center justify-between">
+                        <span>Auto-rescan every 5 min</span>
+                        <button onclick="toggleAlertsPanel()" class="text-slate-500 hover:text-slate-800"><i class="fa-solid fa-xmark"></i> Close</button>
+                    </div>
+                </div>
+
+                <!-- Profile chip (click to open dropdown) -->
+                <button id="profileChip" type="button" onclick="toggleProfileMenu()"
+                        class="flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 rounded-full pl-1 pr-3 py-1 transition-colors">
+                    <div id="profileAvatar"
+                         class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-semibold text-sm overflow-hidden">
+                        {% if user and user.photo %}
+                            <img src="{{ user.photo }}" alt="avatar" class="w-full h-full object-cover">
+                        {% else %}
+                            {{ (user.name[0].upper() if user else 'U') }}
+                        {% endif %}
+                    </div>
+                    <div class="text-[13px] leading-tight text-left">
+                        <div id="profileName" class="font-semibold text-slate-800">{{ user.name if user else 'Guest' }}</div>
+                        <div id="profileRole" class="text-[11px] text-slate-500">{{ (user.role.title()) if user else '' }}</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
+                </button>
+
+                <!-- Profile dropdown menu -->
+                <div id="profileMenu" class="hidden absolute right-0 top-full mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden">
+                    <div class="px-4 py-3 border-b border-slate-100 bg-gradient-to-br from-blue-50 to-indigo-50">
+                        <div class="flex items-center gap-3">
+                            <div id="profileMenuAvatar" class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-lg overflow-hidden flex-shrink-0">
+                                {% if user and user.photo %}
+                                    <img src="{{ user.photo }}" alt="avatar" class="w-full h-full object-cover">
+                                {% else %}
+                                    {{ (user.name[0].upper() if user else 'U') }}
+                                {% endif %}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="font-semibold text-slate-800 text-sm truncate">{{ user.name if user else 'Guest' }}</div>
+                                <div class="text-[11px] text-slate-500 truncate">{{ user.email if user else '' }}</div>
+                                <div class="text-[10px] text-blue-600 font-medium mt-0.5">{{ (user.role.title()) if user else '' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="py-1.5">
+                        <button onclick="openProfileModal(); toggleProfileMenu();" class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3">
+                            <i class="fa-regular fa-user text-slate-400 w-4"></i> My Profile
+                        </button>
+                        <button onclick="openPasswordModal(); toggleProfileMenu();" class="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3">
+                            <i class="fa-solid fa-key text-slate-400 w-4"></i> Change Password
+                        </button>
+                        <a href="/settings" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3">
+                            <i class="fa-solid fa-gear text-slate-400 w-4"></i> Settings
+                        </a>
+                        <div class="border-t border-slate-100 my-1"></div>
+                        <button type="button" onclick="event.preventDefault(); logout();" class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3">
+                            <i class="fa-solid fa-right-from-bracket text-red-500 w-4"></i> Sign out
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+        {% endif %}
+
+        <!-- ============ PROFILE MODAL ============ -->
+        <div id="profileModal" class="hidden fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm flex items-start justify-center pt-12 pb-12 px-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-auto" onclick="event.stopPropagation()">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-2xl">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">My Profile</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Update your personal information and avatar</p>
+                    </div>
+                    <button onclick="closeProfileModal()" class="text-slate-400 hover:text-slate-700 p-1">
+                        <i class="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                </div>
+                <div class="px-6 py-5 max-h-[70vh] overflow-y-auto">
+                    <!-- Avatar uploader -->
+                    <div class="flex items-center gap-5 mb-6 pb-5 border-b border-slate-100">
+                        <div class="relative">
+                            <div id="pmAvatarBig" class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-3xl overflow-hidden ring-4 ring-blue-100">
+                                {% if user and user.photo %}
+                                    <img src="{{ user.photo }}" alt="avatar" class="w-full h-full object-cover">
+                                {% else %}
+                                    {{ (user.name[0].upper() if user else 'U') }}
+                                {% endif %}
+                            </div>
+                            <label for="pmPhotoInput" class="absolute -bottom-1 -right-1 w-8 h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg" title="Change photo">
+                                <i class="fa-solid fa-camera text-xs"></i>
+                            </label>
+                            <input id="pmPhotoInput" type="file" accept="image/*" class="hidden" onchange="uploadProfilePhoto(event)">
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-base font-semibold text-slate-800" id="pmHeadName">{{ user.name if user else '' }}</div>
+                            <div class="text-sm text-slate-500" id="pmHeadEmail">{{ user.email if user else '' }}</div>
+                            <div class="text-xs text-blue-600 font-medium mt-1" id="pmHeadRole">{{ (user.role.title()) if user else '' }}</div>
+                            <div id="pmPhotoMsg" class="text-xs mt-2 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Profile form -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Full Name</label>
+                            <input id="pmName" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                            <input id="pmEmail" type="email" disabled class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Phone</label>
+                            <input id="pmPhone" type="tel" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="+92-300-1234567">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Designation</label>
+                            <input id="pmDesignation" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="e.g. Recruitment Officer">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">About / Bio</label>
+                            <textarea id="pmBio" rows="3" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none" placeholder="A short bio about your role..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Role</label>
+                            <input id="pmRole" type="text" disabled class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Member Since</label>
+                            <input id="pmCreatedAt" type="text" disabled class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Portal Theme</label>
+                            <select id="pmTheme" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                                <option value="corporate-blue">Corporate Blue</option>
+                                <option value="forest-green">Forest Green</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="pmSaveMsg" class="hidden mt-4 text-sm rounded-lg px-3 py-2"></div>
+                </div>
+                <div class="px-6 py-3 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50 rounded-b-2xl">
+                    <button onclick="closeProfileModal()" class="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">Cancel</button>
+                    <button onclick="saveProfile()" id="pmSaveBtn" class="px-5 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm">
+                        <i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ CHANGE PASSWORD MODAL ============ -->
+        <div id="passwordModal" class="hidden fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm flex items-start justify-center pt-20 px-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50 rounded-t-2xl">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-key text-amber-500 mr-2"></i>Change Password</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Choose a strong password to keep your account secure.</p>
+                    </div>
+                    <button onclick="closePasswordModal()" class="text-slate-400 hover:text-slate-700 p-1">
+                        <i class="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                </div>
+                <div class="px-6 py-5 space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Current Password</label>
+                        <input id="pwCurrent" type="password" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">New Password</label>
+                        <input id="pwNew" type="password" minlength="6" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none">
+                        <p class="text-[11px] text-slate-400 mt-1">Minimum 6 characters.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Confirm New Password</label>
+                        <input id="pwConfirm" type="password" minlength="6" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none">
+                    </div>
+                    <div id="pwMsg" class="hidden text-sm rounded-lg px-3 py-2"></div>
+                </div>
+                <div class="px-6 py-3 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50 rounded-b-2xl">
+                    <button onclick="closePasswordModal()" class="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">Cancel</button>
+                    <button onclick="savePassword()" id="pwSaveBtn" class="px-5 py-2 text-sm font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow-sm">
+                        <i class="fa-solid fa-key mr-1.5"></i> Update Password
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page content -->
+        <main class="flex-1 p-6">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- Footer (Copyright + HussnainTechVertex with logo icon) -->
+        <footer class="bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-center gap-2 text-[12px] text-slate-500">
+            <span>&copy; 2025 {{ company_name }} &middot; Powered by</span>
+            <a href="#" class="inline-flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+               title="Designed &amp; developed by HussnainTechVertex Pvt Ltd.">
+                <img src="/static/img/dev_logo_icon.png" alt="HussnainTechVertex"
+                     class="h-5 w-5 object-contain"
+                     style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.08));">
+                <span class="font-semibold text-slate-700">HussnainTechVertex Pvt Ltd.</span>
+            </a>
+        </footer>
+    </div>
+</div>
+{% endblock %}
+
+<script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
+<script>
+function toggleSubmenu(id, btn) {
+    const el = document.getElementById(id);
+    el.classList.toggle('hidden');
+    const chev = btn.querySelector('.fa-chevron-right');
+    if (chev) chev.classList.toggle('rotate-90');
+}
+async function logout() {
+    try { await axios.post('/api/auth/logout'); } catch(e) { console.error('Logout API failed:', e); }
+    localStorage.removeItem('user');
+    localStorage.removeItem('access_token');
+    document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=None; Secure";
+    window.location.replace('/login');
+}
+
+// ============= v8 SMART ALERTS — Notification bell =============
+let _ALERTS_FILTER = 'all';
+let _ALERTS_LAST_DATA = [];
+
+function toggleAlertsPanel() {
+    const p = document.getElementById('alertsPanel');
+    if (!p) return;
+    const willOpen = p.classList.contains('hidden');
+    p.classList.toggle('hidden');
+    if (willOpen) loadAlerts();
+}
+
+async function loadAlerts() {
+    const list = document.getElementById('alertsList');
+    if (!list) return;
+    list.innerHTML = '<div class="text-center text-xs text-slate-400 py-8"><i class="fa-solid fa-spinner fa-spin"></i> Loading alerts…</div>';
+    try {
+        const { data } = await axios.get('/api/reminders', { params: { state: 'active', limit: 200 } });
+        _ALERTS_LAST_DATA = (data && data.items) || [];
+        renderAlertsList();
+        refreshAlertsBadge();
+    } catch (err) {
+        list.innerHTML = '<div class="text-center text-xs text-rose-500 py-6"><i class="fa-solid fa-triangle-exclamation"></i> Failed to load alerts.</div>';
+    }
+}
+
+function setAlertsFilter(f) {
+    _ALERTS_FILTER = f;
+    document.querySelectorAll('#alertsFilterTabs .alerts-tab').forEach(b => {
+        const active = b.dataset.filter === f;
+        b.classList.toggle('bg-white', active);
+        b.classList.toggle('text-slate-700', active);
+        b.classList.toggle('text-slate-500', !active);
+        b.classList.toggle('border-rose-500', active);
+        b.classList.toggle('border-transparent', !active);
+    });
+    renderAlertsList();
+}
+
+function renderAlertsList() {
+    const list = document.getElementById('alertsList');
+    if (!list) return;
+    let items = _ALERTS_LAST_DATA;
+    if (_ALERTS_FILTER === 'critical')      items = items.filter(r => r.severity === 'critical');
+    else if (_ALERTS_FILTER !== 'all')      items = items.filter(r => r.kind === _ALERTS_FILTER);
+    if (!items.length) {
+        list.innerHTML = '<div class="text-center text-xs text-slate-400 py-10"><i class="fa-regular fa-face-smile mr-1"></i> All clear — no alerts in this view.</div>';
+        return;
+    }
+    const sevColors = {
+        critical: { bg: 'bg-rose-50',   border: 'border-rose-200',   icon: 'text-rose-500',   chip: 'bg-rose-500' },
+        warning:  { bg: 'bg-amber-50',  border: 'border-amber-200',  icon: 'text-amber-500',  chip: 'bg-amber-500' },
+        info:     { bg: 'bg-blue-50',   border: 'border-blue-200',   icon: 'text-blue-500',   chip: 'bg-blue-500' },
+    };
+    const iconForKind = {
+        passport_expiry: 'fa-passport',
+        medical_expiry:  'fa-stethoscope',
+        stage_overdue:   'fa-hourglass-half',
+        demand_match:    'fa-handshake',
+        missing_field:   'fa-circle-exclamation',
+        manual:          'fa-thumbtack',
+    };
+    list.innerHTML = items.map(r => {
+        const c = sevColors[r.severity] || sevColors.info;
+        const ico = iconForKind[r.kind] || 'fa-bell';
+        const unread = !r.is_read;
+        const link = r.candidate_id ? `/candidates?focus=${r.candidate_id}`
+                    : r.demand_id   ? `/demands/${r.demand_id}` : '#';
+        return `
+        <div class="px-3 py-2.5 border-b border-slate-100 hover:bg-slate-50 transition ${unread ? 'bg-white' : 'bg-slate-50/50'}">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg ${c.bg} border ${c.border} flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid ${ico} ${c.icon} text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-start justify-between gap-2 mb-0.5">
+                        <a href="${link}" onclick="markAlertRead(${r.id})" class="text-[12.5px] font-semibold text-slate-800 leading-tight hover:text-blue-600 truncate flex-1">
+                            ${r.title}
+                            ${unread ? '<span class="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-rose-500 align-middle"></span>' : ''}
+                        </a>
+                        <span class="text-[9px] uppercase tracking-wider font-bold ${c.chip} text-white px-1.5 py-0.5 rounded flex-shrink-0">${r.severity}</span>
+                    </div>
+                    <div class="text-[11px] text-slate-600 leading-snug">${r.body || ''}</div>
+                    <div class="mt-1.5 flex items-center gap-2 text-[10px] text-slate-400">
+                        ${r.candidate_name ? `<span><i class="fa-regular fa-user mr-0.5"></i>${r.candidate_name}</span>` : ''}
+                        ${r.demand_file_no ? `<span><i class="fa-solid fa-folder-open mr-0.5"></i>${r.demand_file_no}</span>` : ''}
+                        ${r.trade_name ? `<span><i class="fa-solid fa-briefcase mr-0.5"></i>${r.trade_name}</span>` : ''}
+                        <span class="ml-auto flex items-center gap-1.5">
+                            ${unread ? `<button onclick="markAlertRead(${r.id})" class="hover:text-blue-600" title="Mark read"><i class="fa-regular fa-eye"></i></button>` : ''}
+                            <button onclick="dismissAlert(${r.id})" class="hover:text-rose-600" title="Dismiss"><i class="fa-regular fa-trash-can"></i></button>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function refreshAlertsBadge() {
+    try {
+        const { data } = await axios.get('/api/reminders/summary');
+        const unread = data.unread || 0;
+        const total  = data.total_active || 0;
+        const b = document.getElementById('alertsBadge');
+        const t = document.getElementById('alertsTotalChip');
+        if (b) {
+            if (unread > 0) { b.textContent = unread > 99 ? '99+' : String(unread); b.classList.remove('hidden'); }
+            else b.classList.add('hidden');
+        }
+        if (t) {
+            if (total > 0) { t.textContent = total; t.classList.remove('hidden'); }
+            else t.classList.add('hidden');
+        }
+    } catch (e) { /* ignore */ }
+}
+
+async function markAlertRead(id) {
+    try { await axios.post(`/api/reminders/${id}/read`); } catch (e) {}
+    const r = _ALERTS_LAST_DATA.find(x => x.id === id);
+    if (r) r.is_read = true;
+    renderAlertsList();
+    refreshAlertsBadge();
+}
+
+async function dismissAlert(id) {
+    try { await axios.post(`/api/reminders/${id}/dismiss`); } catch (e) {}
+    _ALERTS_LAST_DATA = _ALERTS_LAST_DATA.filter(x => x.id !== id);
+    renderAlertsList();
+    refreshAlertsBadge();
+}
+
+async function markAllAlertsRead() {
+    try { await axios.post('/api/reminders/read-all'); } catch (e) {}
+    _ALERTS_LAST_DATA.forEach(r => r.is_read = true);
+    renderAlertsList();
+    refreshAlertsBadge();
+}
+
+async function rescanAlerts() {
+    const list = document.getElementById('alertsList');
+    if (list) list.innerHTML = '<div class="text-center text-xs text-indigo-500 py-8"><i class="fa-solid fa-spinner fa-spin"></i> Re-scanning DB for new alerts…</div>';
+    try {
+        await axios.post('/api/reminders/scan');
+        await loadAlerts();
+    } catch (err) {
+        if (list) list.innerHTML = '<div class="text-center text-xs text-rose-500 py-6">Scan failed.</div>';
+    }
+}
+
+// Close alerts panel on outside click
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('alertsPanel');
+    const bell  = document.getElementById('alertsBell');
+    if (!panel || !bell) return;
+    if (panel.classList.contains('hidden')) return;
+    if (!panel.contains(e.target) && !bell.contains(e.target)) panel.classList.add('hidden');
+});
+
+// Auto-refresh badge every 5 minutes (background poll)
+{% if user %}
+(function() {
+    refreshAlertsBadge();
+    setInterval(refreshAlertsBadge, 5 * 60 * 1000);
+    // Trigger a scan on first load if there's no alert data yet
+    setTimeout(() => {
+        axios.get('/api/reminders/summary').then(({data}) => {
+            if ((data.total_active || 0) === 0) {
+                axios.post('/api/reminders/scan').then(refreshAlertsBadge).catch(()=>{});
+            }
+        }).catch(()=>{});
+    }, 1500);
+})();
+{% endif %}
+
+// Ctrl+I shortcut to open alerts
+document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        toggleAlertsPanel();
+    }
+});
+
+// ============= Profile menu / modals =============
+function toggleProfileMenu() {
+    const m = document.getElementById('profileMenu');
+    if (!m) return;
+    m.classList.toggle('hidden');
+}
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('profileMenu');
+    const chip = document.getElementById('profileChip');
+    if (!menu || !chip) return;
+    if (menu.classList.contains('hidden')) return;
+    if (!menu.contains(e.target) && !chip.contains(e.target)) {
+        menu.classList.add('hidden');
+    }
+});
+
+async function openProfileModal() {
+    document.getElementById('profileModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    try {
+        const { data } = await axios.get('/api/users/me');
+        document.getElementById('pmName').value = data.name || '';
+        document.getElementById('pmEmail').value = data.email || '';
+        document.getElementById('pmPhone').value = data.phone || '';
+        document.getElementById('pmDesignation').value = data.designation || '';
+        document.getElementById('pmBio').value = data.bio || '';
+        if (data.theme) {
+            document.getElementById('pmTheme').value = data.theme;
+            localStorage.setItem('theme', data.theme);
+        }
+        document.getElementById('pmRole').value = (data.role || '').replace(/^./, c => c.toUpperCase());
+        document.getElementById('pmCreatedAt').value = data.created_at ? new Date(data.created_at).toLocaleDateString('en-GB') : '';
+        document.getElementById('pmHeadName').textContent = data.name || '';
+        document.getElementById('pmHeadEmail').textContent = data.email || '';
+        document.getElementById('pmHeadRole').textContent = (data.role || '').replace(/^./, c => c.toUpperCase());
+        const big = document.getElementById('pmAvatarBig');
+        if (data.photo) big.innerHTML = `<img src="${data.photo}?t=${Date.now()}" alt="avatar" class="w-full h-full object-cover">`;
+        else big.innerHTML = (data.name || 'U').charAt(0).toUpperCase();
+    } catch (e) { console.error('load profile', e); }
+}
+function closeProfileModal() {
+    document.getElementById('profileModal').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+async function saveProfile() {
+    const btn = document.getElementById('pmSaveBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Saving…';
+    const payload = {
+        name: document.getElementById('pmName').value.trim(),
+        phone: document.getElementById('pmPhone').value.trim(),
+        designation: document.getElementById('pmDesignation').value.trim(),
+        bio: document.getElementById('pmBio').value.trim(),
+        theme: document.getElementById('pmTheme').value,
+    };
+    const msg = document.getElementById('pmSaveMsg');
+    try {
+        const { data } = await axios.put('/api/users/me', payload);
+        msg.className = 'mt-4 text-sm rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200';
+        msg.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i> Profile updated successfully.';
+        msg.classList.remove('hidden');
+        // Refresh top-bar
+        document.getElementById('profileName').textContent = data.name;
+        document.getElementById('pmHeadName').textContent = data.name;
+        
+        const oldTheme = localStorage.getItem('theme') || 'corporate-blue';
+        localStorage.setItem('theme', data.theme || 'corporate-blue');
+        
+        setTimeout(() => {
+            msg.classList.add('hidden');
+            if (oldTheme !== data.theme) {
+                window.location.reload();
+            }
+        }, 1250);
+    } catch (e) {
+        msg.className = 'mt-4 text-sm rounded-lg px-3 py-2 bg-red-50 text-red-700 border border-red-200';
+        msg.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-1"></i> ' + (e.response?.data?.detail || 'Failed to save.');
+        msg.classList.remove('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Changes';
+    }
+}
+async function uploadProfilePhoto(ev) {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    const msg = document.getElementById('pmPhotoMsg');
+    msg.className = 'text-xs mt-2 text-slate-500';
+    msg.textContent = 'Uploading photo…';
+    msg.classList.remove('hidden');
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+        const { data } = await axios.post('/api/users/me/photo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        const photoUrl = data.photo + '?t=' + Date.now();
+        document.getElementById('pmAvatarBig').innerHTML = `<img src="${photoUrl}" alt="avatar" class="w-full h-full object-cover">`;
+        document.getElementById('profileAvatar').innerHTML = `<img src="${photoUrl}" alt="avatar" class="w-full h-full object-cover">`;
+        const menuAv = document.getElementById('profileMenuAvatar');
+        if (menuAv) menuAv.innerHTML = `<img src="${photoUrl}" alt="avatar" class="w-full h-full object-cover">`;
+        msg.className = 'text-xs mt-2 text-emerald-600';
+        msg.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i> Photo updated.';
+        setTimeout(() => msg.classList.add('hidden'), 2500);
+    } catch (e) {
+        msg.className = 'text-xs mt-2 text-red-600';
+        msg.textContent = 'Upload failed: ' + (e.response?.data?.detail || e.message);
+    } finally {
+        ev.target.value = '';
+    }
+}
+
+function openPasswordModal() {
+    document.getElementById('passwordModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('pwCurrent').value = '';
+    document.getElementById('pwNew').value = '';
+    document.getElementById('pwConfirm').value = '';
+    document.getElementById('pwMsg').classList.add('hidden');
+}
+function closePasswordModal() {
+    document.getElementById('passwordModal').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+async function savePassword() {
+    const cur = document.getElementById('pwCurrent').value;
+    const nw = document.getElementById('pwNew').value;
+    const cf = document.getElementById('pwConfirm').value;
+    const msg = document.getElementById('pwMsg');
+    if (!cur || !nw || !cf) {
+        msg.className = 'text-sm rounded-lg px-3 py-2 bg-red-50 text-red-700 border border-red-200';
+        msg.textContent = 'All fields are required.'; msg.classList.remove('hidden'); return;
+    }
+    if (nw.length < 6) {
+        msg.className = 'text-sm rounded-lg px-3 py-2 bg-red-50 text-red-700 border border-red-200';
+        msg.textContent = 'New password must be at least 6 characters.'; msg.classList.remove('hidden'); return;
+    }
+    if (nw !== cf) {
+        msg.className = 'text-sm rounded-lg px-3 py-2 bg-red-50 text-red-700 border border-red-200';
+        msg.textContent = 'New password and confirmation do not match.'; msg.classList.remove('hidden'); return;
+    }
+    const btn = document.getElementById('pwSaveBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>Updating…';
+    try {
+        await axios.post('/api/users/me/change-password', { current_password: cur, new_password: nw });
+        msg.className = 'text-sm rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200';
+        msg.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i> Password updated successfully.';
+        msg.classList.remove('hidden');
+        setTimeout(closePasswordModal, 1500);
+    } catch (e) {
+        msg.className = 'text-sm rounded-lg px-3 py-2 bg-red-50 text-red-700 border border-red-200';
+        msg.innerHTML = '<i class="fa-solid fa-circle-exclamation mr-1"></i> ' + (e.response?.data?.detail || 'Failed.');
+        msg.classList.remove('hidden');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-key mr-1.5"></i> Update Password';
+    }
+}
+</script>
+<script src="/static/js/app.js"></script>
+
+<!-- ================================================================ -->
+<!-- DtcBot — floating AI chatbot widget (gated by tenant feature flag) -->
+<!-- ================================================================ -->
+{% if not features or features.get('ai_chatbot', True) %}
+<div id="dtcbot-root" class="fixed bottom-5 right-5 z-50 flex flex-col items-end">
+    <!-- Chat panel -->
+    <div id="dtcbot-panel" class="hidden mb-3 w-[380px] max-w-[92vw] h-[540px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+        <!-- Header -->
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+            <div class="w-10 h-10 rounded-full bg-white p-1 flex items-center justify-center">
+                <img src="/static/img/logo-sm.png" alt="DtcBot" class="w-full h-full object-contain">
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-sm leading-tight">DtcBot</div>
+                <div class="text-[11px] text-blue-100 leading-tight">Dogar Trading AI Assistant · Auto-Pilot</div>
+            </div>
+            <button onclick="dtcbotToggle()" class="text-white/80 hover:text-white p-1" title="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <!-- Messages -->
+        <div id="dtcbot-msgs" class="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 text-sm"></div>
+        <!-- Input bar -->
+        <div class="border-t border-slate-100 bg-white p-2.5">
+            <form id="dtcbot-form" class="flex items-center gap-2">
+                <label class="cursor-pointer text-slate-400 hover:text-blue-600 p-2" title="Upload passport image">
+                    <i class="fa-regular fa-image"></i>
+                    <input type="file" id="dtcbot-upload" accept="image/*" class="hidden">
+                </label>
+                <input id="dtcbot-input" type="text" placeholder="Ask DtcBot... e.g. 'Add a new demand file'"
+                       class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-full focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-9 h-9 flex items-center justify-center" title="Send">
+                    <i class="fa-solid fa-paper-plane text-sm"></i>
+                </button>
+            </form>
+            <div class="text-[10px] text-slate-400 text-center mt-1.5">Powered by HussnainTechVertex · OCR · Workflow AI</div>
+        </div>
+    </div>
+    <!-- FAB button (uses logo, like default DTC icon) -->
+    <button id="dtcbot-fab" onclick="dtcbotToggle()" title="Open DtcBot AI Assistant"
+            class="w-14 h-14 rounded-full bg-white shadow-lg border-2 border-blue-500 hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center relative">
+        <img src="/static/img/logo-sm.png" alt="DtcBot" class="w-9 h-9 object-contain">
+        <span id="dtcbot-dot" class="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></span>
+    </button>
+</div>
+{% endif %}
+
+<script>
+(function() {
+    const $panel = document.getElementById('dtcbot-panel');
+    if (!$panel) return; // AI chatbot feature disabled for this tenant — skip wiring
+    const $msgs = document.getElementById('dtcbot-msgs');
+    const $form = document.getElementById('dtcbot-form');
+    const $input = document.getElementById('dtcbot-input');
+    const $upload = document.getElementById('dtcbot-upload');
+    const $dot = document.getElementById('dtcbot-dot');
+    let initialized = false;
+
+    window.dtcbotToggle = function() {
+        $panel.classList.toggle('hidden');
+        $dot.classList.add('hidden');
+        if (!initialized && !$panel.classList.contains('hidden')) {
+            initialized = true;
+            loadWelcome();
+        }
+        if (!$panel.classList.contains('hidden')) {
+            setTimeout(() => $input.focus(), 100);
+        }
+    };
+
+    function escapeHtml(s) {
+        return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function fmtText(s) {
+        // bold **...**
+        return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+    }
+
+    function pushUserMessage(text) {
+        const div = document.createElement('div');
+        div.className = 'flex justify-end';
+        div.innerHTML = `<div class="bg-blue-600 text-white px-3 py-2 rounded-2xl rounded-br-md max-w-[80%] text-sm shadow-sm">${escapeHtml(text)}</div>`;
+        $msgs.appendChild(div);
+        $msgs.scrollTop = $msgs.scrollHeight;
+    }
+    function pushBotMessage(html) {
+        const div = document.createElement('div');
+        div.className = 'flex items-start gap-2';
+        div.innerHTML = `
+            <div class="w-7 h-7 flex-shrink-0 rounded-full bg-white border border-blue-200 p-0.5 mt-0.5">
+                <img src="/static/img/logo-sm.png" alt="" class="w-full h-full object-contain">
+            </div>
+            <div class="bg-white border border-slate-200 px-3 py-2 rounded-2xl rounded-tl-md max-w-[85%] text-sm shadow-sm text-slate-700">${html}</div>`;
+        $msgs.appendChild(div);
+        $msgs.scrollTop = $msgs.scrollHeight;
+    }
+    function pushTyping(label) {
+        const div = document.createElement('div');
+        div.id = 'dtcbot-typing';
+        div.className = 'flex items-start gap-2';
+        const labelHtml = label ? `<span class="text-[11.5px] text-slate-500 ml-1.5">${escapeHtml(label)}</span>` : '';
+        div.innerHTML = `
+            <div class="w-7 h-7 flex-shrink-0 rounded-full bg-white border border-blue-200 p-0.5 mt-0.5">
+                <img src="/static/img/logo-sm.png" alt="" class="w-full h-full object-contain">
+            </div>
+            <div class="bg-white border border-slate-200 px-3 py-2 rounded-2xl rounded-tl-md text-sm text-slate-400">
+                <span class="inline-flex gap-1 items-center">
+                    <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse"></span>
+                    <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse" style="animation-delay:.15s"></span>
+                    <span class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse" style="animation-delay:.3s"></span>
+                    ${labelHtml}
+                </span>
+            </div>`;
+        $msgs.appendChild(div);
+        $msgs.scrollTop = $msgs.scrollHeight;
+    }
+    function removeTyping() {
+        const t = document.getElementById('dtcbot-typing');
+        if (t) t.remove();
+    }
+
+    // Simple, safe-ish Markdown renderer for AI replies (bold, italic, code, lists, links, headings).
+    function mdRender(src) {
+        let s = escapeHtml(src || '');
+        // Code spans
+        s = s.replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 rounded text-[12px]">$1</code>');
+        // Bold / italic
+        s = s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*]+)\*/g, '$1<i>$2</i>');
+        // Links [text](url)  – url must be relative or http(s)
+        s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g,
+            '<a href="$2" target="_blank" class="text-blue-600 hover:underline">$1</a>');
+        // Headings (#, ##, ###)
+        s = s.replace(/^### (.+)$/gm, '<div class="font-semibold text-slate-800 mt-1.5">$1</div>')
+             .replace(/^## (.+)$/gm,  '<div class="font-bold text-slate-800 mt-1.5">$1</div>')
+             .replace(/^# (.+)$/gm,   '<div class="font-bold text-slate-900 text-[14px] mt-1.5">$1</div>');
+        // Bullet lists
+        s = s.replace(/(?:^|\n)((?:- .+(?:\n|$))+)/g, function(_, blk) {
+            const lis = blk.trim().split(/\n/).map(l => l.replace(/^- /, '')).map(l => `<li>${l}</li>`).join('');
+            return `<ul class="list-disc pl-5 space-y-0.5">${lis}</ul>`;
+        });
+        // Paragraphs
+        s = s.split(/\n{2,}/).map(p => p.includes('<ul') || p.includes('<div') ? p : `<p>${p}</p>`).join('');
+        // Line breaks
+        s = s.replace(/\n/g, '<br>');
+        return s;
+    }
+
+    // Conversation memory (last 8 turns sent to backend)
+    window._dtcHistory = window._dtcHistory || [];
+
+    function renderResponse(resp) {
+        const t = resp.type || 'text';
+        if (t === 'ai') {
+            // LLM brain answer (Markdown + tools-used badge)
+            let html = mdRender(resp.text || '');
+            if (resp.tools_used && resp.tools_used.length) {
+                const uniq = [...new Set(resp.tools_used)];
+                html += '<div class="mt-2 flex flex-wrap gap-1">' +
+                    uniq.map(tn => `<span class="inline-flex items-center gap-1 text-[10px] bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded-full"><i class="fa-solid fa-database text-[9px]"></i>${escapeHtml(tn)}</span>`).join('') +
+                    '</div>';
+            }
+            pushBotMessage(html);
+            // Remember the assistant turn
+            window._dtcHistory.push({ role: 'assistant', content: resp.text || '' });
+            if (window._dtcHistory.length > 16) window._dtcHistory = window._dtcHistory.slice(-16);
+            return;
+        }
+        if (t === 'text') {
+            let html = fmtText(resp.text || '');
+            if (resp.links && resp.links.length) {
+                html += '<div class="mt-2 flex flex-wrap gap-1.5">' +
+                    resp.links.map(l => `<a href="${l.href}" class="inline-block text-[11.5px] bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 rounded font-semibold">${escapeHtml(l.label)} <i class="fa-solid fa-arrow-right text-[10px]"></i></a>`).join('') +
+                    '</div>';
+            }
+            if (resp.quick_replies && resp.quick_replies.length) {
+                html += '<div class="mt-2 flex flex-wrap gap-1.5">' +
+                    resp.quick_replies.map(q => `<button onclick="dtcbotSend('${q.msg.replace(/'/g, "\\'")}')" class="text-[11.5px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded">${escapeHtml(q.label)}</button>`).join('') +
+                    '</div>';
+            }
+            pushBotMessage(html);
+        }
+        else if (t === 'guide') {
+            let html = `<div class="font-semibold text-slate-800 mb-1">${escapeHtml(resp.title)}</div>`;
+            html += '<ol class="list-decimal pl-4 space-y-1 text-[13px]">' +
+                resp.steps.map(s => `<li>${fmtText(s)}</li>`).join('') + '</ol>';
+            if (resp.links && resp.links.length) {
+                html += '<div class="mt-2 flex flex-wrap gap-1.5">' +
+                    resp.links.map(l => `<a href="${l.href}" class="inline-block text-[11.5px] bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 rounded font-semibold">${escapeHtml(l.label)} <i class="fa-solid fa-arrow-right text-[10px]"></i></a>`).join('') +
+                    '</div>';
+            }
+            pushBotMessage(html);
+        }
+        else if (t === 'help_menu') {
+            let html = fmtText(resp.text || '') + '<div class="mt-2 flex flex-col gap-1.5">' +
+                resp.items.map(it => `<button onclick="dtcbotSend('${it.msg.replace(/'/g, "\\'")}')" class="text-left text-[12.5px] bg-slate-50 hover:bg-slate-100 text-slate-700 px-2.5 py-1.5 rounded border border-slate-200">${escapeHtml(it.label)}</button>`).join('') +
+                '</div>';
+            pushBotMessage(html);
+        }
+        else if (t === 'results') {
+            let html = fmtText(resp.text || '') + '<div class="mt-2 space-y-1.5">' +
+                resp.results.map(r => {
+                    const ico = { demand: 'fa-folder', candidate: 'fa-id-badge', client: 'fa-building', template: 'fa-file-pdf' }[r.kind] || 'fa-circle';
+                    return `<a href="${r.href}" class="block bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded p-2"><div class="flex items-center gap-2"><i class="fa-regular ${ico} text-blue-500"></i><div class="flex-1 min-w-0"><div class="font-semibold text-slate-800 text-[12.5px] truncate">${escapeHtml(r.title)}</div><div class="text-[11px] text-slate-500 truncate">${escapeHtml(r.subtitle)}</div></div></div></a>`;
+                }).join('') + '</div>';
+            pushBotMessage(html);
+        }
+        else if (t === 'ocr_result') {
+            let html = fmtText(resp.text || '');
+            const f = resp.fields || {};
+            const rows = Object.keys(f).filter(k => !k.startsWith('_'));
+            if (rows.length) {
+                html += '<div class="mt-2 bg-slate-50 border border-slate-200 rounded overflow-hidden text-[12px]">' +
+                    '<table class="w-full"><tbody>' +
+                    rows.map(k => `<tr><td class="px-2 py-1 text-slate-500 border-b border-slate-200">${escapeHtml(k.replace(/_/g,' '))}</td><td class="px-2 py-1 font-semibold text-slate-800 border-b border-slate-200">${escapeHtml(String(f[k]))}</td></tr>`).join('') +
+                    '</tbody></table></div>';
+            }
+            if (resp.links && resp.links.length) {
+                html += '<div class="mt-2 flex flex-wrap gap-1.5">' +
+                    resp.links.map(l => `<a href="${l.href}" class="inline-block text-[11.5px] bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 rounded font-semibold">${escapeHtml(l.label)} <i class="fa-solid fa-arrow-right text-[10px]"></i></a>`).join('') +
+                    '</div>';
+            }
+            pushBotMessage(html);
+        }
+        else if (t === 'action') {
+            // Vercel-v0-style actionable agent: the bot has already done the
+            // work server-side (created / updated / assigned a candidate).
+            // Render a confirmation card + auto-navigate to the new record
+            // so the operator's end-to-end OCR→data-entry loop completes
+            // without any extra clicks.
+            const verb = resp.verb || 'done';
+            const verbColors = {
+                created:  { bg: 'bg-emerald-50', bd: 'border-emerald-200', tx: 'text-emerald-800', ic: 'fa-plus-circle text-emerald-600' },
+                updated:  { bg: 'bg-blue-50',    bd: 'border-blue-200',    tx: 'text-blue-800',    ic: 'fa-pen-to-square text-blue-600' },
+                assigned: { bg: 'bg-violet-50',  bd: 'border-violet-200',  tx: 'text-violet-800',  ic: 'fa-link text-violet-600' },
+                noop:     { bg: 'bg-slate-50',   bd: 'border-slate-200',   tx: 'text-slate-700',   ic: 'fa-circle-info text-slate-500' },
+                done:     { bg: 'bg-slate-50',   bd: 'border-slate-200',   tx: 'text-slate-700',   ic: 'fa-circle-check text-emerald-600' },
+            }[verb] || { bg: 'bg-slate-50', bd: 'border-slate-200', tx: 'text-slate-700', ic: 'fa-circle-check text-emerald-600' };
+
+            let html = `<div class="border ${verbColors.bd} ${verbColors.bg} rounded-lg p-2.5 flex items-start gap-2">`;
+            html += `<i class="fa-solid ${verbColors.ic} text-[15px] mt-0.5"></i>`;
+            html += `<div class="flex-1 min-w-0 ${verbColors.tx}">${fmtText(resp.text || '')}`;
+            // Fields panel (what got entered)
+            const fs = resp.fields || (resp.candidate || {});
+            const interesting = Object.keys(fs).filter(k =>
+                !k.startsWith('_') && k !== 'id' &&
+                fs[k] !== null && fs[k] !== '' && typeof fs[k] !== 'object'
+            ).slice(0, 8);
+            if (interesting.length) {
+                html += '<div class="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11.5px] bg-white/60 rounded p-1.5 border border-white">';
+                interesting.forEach(k => {
+                    html += `<div class="text-slate-500">${escapeHtml(k.replace(/_/g,' '))}</div>` +
+                            `<div class="font-semibold text-slate-800 truncate">${escapeHtml(String(fs[k]))}</div>`;
+                });
+                html += '</div>';
+            }
+            // Open / open-now buttons
+            const url = resp.url || (resp.candidate_id ? `/candidates?edit=${resp.candidate_id}&flyout=0` : null);
+            if (url) {
+                html += `<div class="mt-2 flex items-center gap-1.5">` +
+                    `<a href="${url}" class="text-[11.5px] bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded font-semibold inline-flex items-center gap-1"><i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> Open Record</a>` +
+                    `<button onclick="window.location.href='${url}'" class="text-[11.5px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded font-semibold">Navigate Now</button>` +
+                    `</div>`;
+            }
+            html += `</div></div>`;
+            pushBotMessage(html);
+
+            // Auto-navigate after a short delay so the user can read the
+            // confirmation card. Cancel if the bot panel was closed in
+            // the meantime, or if the response explicitly disables it.
+            if (resp.navigate && url) {
+                const NAV_DELAY_MS = 1800;
+                setTimeout(() => {
+                    try {
+                        if (document.hidden) return;  // skip if user tabbed away
+                        window.location.href = url;
+                    } catch (_) { /* ignore */ }
+                }, NAV_DELAY_MS);
+            }
+        }
+        else {
+            pushBotMessage(fmtText(resp.text || JSON.stringify(resp)));
+        }
+    }
+
+    async function loadWelcome() {
+        try {
+            const { data } = await axios.get('/api/chatbot/welcome');
+            renderResponse(data);
+        } catch (e) {
+            pushBotMessage('Hello! I\'m DtcBot. How can I help you today?');
+        }
+    }
+
+    window.dtcbotSend = async function(text) {
+        if (!text || !text.trim()) return;
+        pushUserMessage(text);
+        pushTyping();
+        // Track user turn in history
+        window._dtcHistory = window._dtcHistory || [];
+        window._dtcHistory.push({ role: 'user', content: text });
+        if (window._dtcHistory.length > 16) window._dtcHistory = window._dtcHistory.slice(-16);
+        try {
+            const { data } = await axios.post('/api/chatbot/message', {
+                message: text,
+                history: window._dtcHistory.slice(0, -1), // exclude the just-pushed message
+            });
+            removeTyping();
+            renderResponse(data);
+        } catch (e) {
+            removeTyping();
+            pushBotMessage('Sorry — I had trouble reaching the server. Please try again.');
+        }
+    };
+
+    $form.addEventListener('submit', e => {
+        e.preventDefault();
+        const val = $input.value.trim();
+        if (!val) return;
+        $input.value = '';
+        window.dtcbotSend(val);
+    });
+
+    $upload.addEventListener('change', async e => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        pushUserMessage(`📷 Uploaded: ${file.name}`);
+        // Actionable-agent banner: tell the user the bot is doing real work,
+        // not just chatting (matches the Vercel v0 / Lovable v0 style).
+        pushTyping('🤖 Reading passport · running OCR · creating candidate record…');
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+            // ?auto_create=true tells the backend to perform the end-to-end
+            // action (OCR → map fields → create/update candidate) instead
+            // of returning a static OCR result for the user to manually act on.
+            const { data } = await axios.post('/api/chatbot/upload?auto_create=true', fd,
+                { headers: { 'Content-Type': 'multipart/form-data' } });
+            removeTyping();
+            renderResponse(data);
+        } catch (err) {
+            removeTyping();
+            pushBotMessage('Sorry — I couldn\'t process that file. Please upload a clear JPG/PNG of a passport bio-page.');
+        } finally {
+            $upload.value = '';
+        }
+    });
+})();
+</script>
+
+<!-- GLOBAL DOCUMENT PRINT PREVIEW/PRINT MODAL (Stay-on-Same-Page) -->
+<div id="globalPrintModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-2xl w-[95vw] h-[95vh] max-w-[1200px] flex flex-col overflow-hidden">
+        <!-- Modal Header -->
+        <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between flex-shrink-0">
+            <div>
+                <h3 id="globalPrintTitle" class="font-bold text-slate-800 text-base">Document Print Preview</h3>
+                <p id="globalPrintSubtitle" class="text-xs text-slate-500 mt-0.5">Live coordinate data overlay preview panel</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="closeGlobalPrintModal()" class="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-600 text-sm font-semibold rounded-lg transition">
+                    Close
+                </button>
+                <button onclick="triggerIframePrint()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-print"></i> Print Document
+                </button>
+            </div>
+        </div>
+        <!-- Modal Body (Iframe) -->
+        <div class="flex-1 bg-slate-100 relative overflow-hidden">
+            <div id="globalPrintLoading" class="absolute inset-0 flex items-center justify-center bg-white/80 z-10 transition-opacity duration-300">
+                <div class="text-center">
+                    <i class="fa-solid fa-spinner fa-spin text-3xl text-blue-600 mb-2"></i>
+                    <p class="text-sm text-slate-600 font-medium">Preparing document preview...</p>
+                </div>
+            </div>
+            <iframe id="globalPrintIframe" class="w-full h-full border-0 hidden"></iframe>
+        </div>
+    </div>
+</div>
+
+<script>
+function showGlobalPrintModal(tplId, recordId, tplName = "Document") {
+    const modal = document.getElementById('globalPrintModal');
+    const iframe = document.getElementById('globalPrintIframe');
+    const loading = document.getElementById('globalPrintLoading');
+    const title = document.getElementById('globalPrintTitle');
+    
+    title.textContent = `Print Preview: ${tplName}`;
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    loading.classList.remove('hidden');
+    loading.classList.add('flex');
+    iframe.classList.add('hidden');
+    
+    // Set iframe src to print route with auto=0 (no auto-print) and fit=1
+    // (scale the A4 page to fit the modal width so the doc looks full-size,
+    // not small/floating/cropped in the gray modal viewport). The fit-mode
+    // CSS is reset to true 1:1 A4 inside @media print so the physical
+    // print output stays pixel-accurate to the designer canvas.
+    iframe.src = `/api/documents/templates/${tplId}/print?record_id=${recordId}&auto=0&fit=1`;
+    
+    iframe.onload = function() {
+        loading.classList.add('hidden');
+        loading.classList.remove('flex');
+        iframe.classList.remove('hidden');
+        
+        // Hide the print controller bar inside the iframe for a clean document look
+        try {
+            const innerDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const toolbar = innerDoc.querySelector('.toolbar');
+            if (toolbar) {
+                toolbar.style.display = 'none';
+            }
+            innerDoc.documentElement.style.overflow = 'auto';
+            innerDoc.body.style.background = '#f1f5f9';
+        } catch (e) {
+            console.error(e);
+        }
+    };
+}
+
+function closeGlobalPrintModal() {
+    const modal = document.getElementById('globalPrintModal');
+    const iframe = document.getElementById('globalPrintIframe');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    iframe.src = 'about:blank';
+}
+
+function triggerIframePrint() {
+    const iframe = document.getElementById('globalPrintIframe');
+    try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+    } catch (e) {
+        window.open(iframe.src.replace('auto=0', 'auto=1'), '_blank');
+    }
+}
+</script>
+
+<!-- Mobile sidebar toggle -->
+<script>
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar) return;
+    const isOpen = sidebar.classList.contains('show');
+    if (isOpen) {
+        sidebar.classList.remove('show');
+        if (overlay) overlay.classList.remove('show');
+    } else {
+        sidebar.classList.add('show');
+        if (overlay) overlay.classList.add('show');
+    }
+}
+// Close sidebar on Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar && sidebar.classList.contains('show')) {
+            sidebar.classList.remove('show');
+            if (overlay) overlay.classList.remove('show');
+        }
+    }
+});
+</script>
+
+<!-- v7 Global Keyboard Shortcuts (power-user productivity) -->
+<script>
+document.addEventListener('keydown', function(e) {
+    // Skip when typing in inputs
+    const tag = (e.target && e.target.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
+
+    // Ctrl/Cmd + K → focus the first visible search input on the page
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        const searchInputs = document.querySelectorAll('input[type="search"], input[id*="search" i], input[placeholder*="Search" i]');
+        for (const inp of searchInputs) {
+            if (inp.offsetParent !== null) {  // visible check
+                e.preventDefault();
+                inp.focus();
+                inp.select && inp.select();
+                return;
+            }
+        }
+    }
+
+    // Alt+N → navigate to new candidate quickly (only on candidates page)
+    if (e.altKey && e.key.toLowerCase() === 'n') {
+        const newBtn = document.querySelector('button[onclick*="openWizard"], button[onclick*="openNewModal"]');
+        if (newBtn && newBtn.offsetParent !== null) {
+            e.preventDefault();
+            newBtn.click();
+        }
+    }
+});
+
+// Inject a small "Pro tip" badge into search bars (one-time, dismissible) — disabled by default,
+// can be enabled by setting localStorage.showKbHints = '1'
+(function() {
+    if (localStorage.getItem('showKbHints') !== '1') return;
+    document.addEventListener('DOMContentLoaded', function() {
+        const search = document.querySelector('input[id*="search" i], input[placeholder*="Search" i]');
+        if (search && !search.dataset.kbHint) {
+            search.dataset.kbHint = '1';
+            search.placeholder = (search.placeholder || 'Search') + '  (Ctrl+K)';
+        }
+    });
+})();
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

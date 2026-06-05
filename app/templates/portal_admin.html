@@ -1,0 +1,666 @@
+{% extends "base.html" %}
+{% block title %}Portal Admin · {{ company_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-start justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-sitemap text-blue-600"></i> Portal Admin · Copy Portal
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">
+            Provision an isolated portal copy for another business partner — own database, own branding, own feature set.
+        </p>
+    </div>
+    <button onclick="openNewTenant()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+        <i class="fa-solid fa-plus"></i> Copy Portal for New Partner
+    </button>
+</div>
+
+<!-- Stat tiles -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+    <div class="stat-tile">
+        <div class="stat-label">Total Tenants</div>
+        <div class="stat-value text-blue-600" id="statTotal">0</div>
+        <div class="stat-sub"><i class="fa-solid fa-sitemap text-blue-400"></i> Portal copies</div>
+    </div>
+    <div class="stat-tile">
+        <div class="stat-label">Active</div>
+        <div class="stat-value text-emerald-600" id="statActive">0</div>
+        <div class="stat-sub"><i class="fa-solid fa-circle-check text-emerald-400"></i> Currently running</div>
+    </div>
+    <div class="stat-tile">
+        <div class="stat-label">Suspended</div>
+        <div class="stat-value text-amber-600" id="statSusp">0</div>
+        <div class="stat-sub"><i class="fa-solid fa-pause text-amber-400"></i> Temporarily off</div>
+    </div>
+    <div class="stat-tile">
+        <div class="stat-label">Storage Used</div>
+        <div class="stat-value text-violet-600" id="statStore">— MB</div>
+        <div class="stat-sub"><i class="fa-solid fa-database text-violet-400"></i> Across all tenants</div>
+    </div>
+</div>
+
+<!-- Tenants table -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="font-semibold text-slate-800"><i class="fa-solid fa-list text-blue-600 mr-2"></i> Provisioned Portals</h3>
+        <span class="text-xs text-slate-400" id="lastRefresh">—</span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Partner / Company</th>
+                    <th>Slug</th>
+                    <th>Plan</th>
+                    <th>Status</th>
+                    <th>Features Enabled</th>
+                    <th>Admin Email</th>
+                    <th>Created</th>
+                    <th class="text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tenantsTbody">
+                <tr><td colspan="8" class="text-center text-slate-400 py-10"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- NEW TENANT MODAL -->
+<div id="newTenantModal" class="fixed inset-0 bg-black/50 hidden items-start justify-center z-50 overflow-y-auto py-6 px-3">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl my-4">
+        <div class="px-5 py-3 border-b flex items-center justify-between">
+            <h3 class="text-base font-bold text-slate-800">
+                <i class="fa-solid fa-clone text-blue-600 mr-2"></i> Copy Portal for New Business Partner
+            </h3>
+            <button onclick="closeNewTenant()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <form id="newTenantForm" onsubmit="submitNewTenant(event)" class="p-5 space-y-5">
+            <!-- Branding -->
+            <div>
+                <div class="text-xs font-bold text-slate-500 uppercase mb-2 tracking-wider">Branding</div>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <label><span class="text-slate-600">Company Name <span class="text-rose-500">*</span></span>
+                        <input name="company_name" required placeholder="e.g. ABC Overseas Ltd" class="mt-1 w-full border rounded-md px-3 py-2">
+                    </label>
+                    <label><span class="text-slate-600">Short Name (sidebar)</span>
+                        <input name="short_name" placeholder="ABC OVERSEAS" class="mt-1 w-full border rounded-md px-3 py-2">
+                    </label>
+                    <label><span class="text-slate-600">Subtitle</span>
+                        <input name="subtitle" value="Overseas Employment Promoters" class="mt-1 w-full border rounded-md px-3 py-2">
+                    </label>
+                    <label><span class="text-slate-600">Primary Color</span>
+                        <input type="color" name="primary_color" value="#2563eb" class="mt-1 h-10 w-full border rounded-md">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Admin Account -->
+            <div>
+                <div class="text-xs font-bold text-slate-500 uppercase mb-2 tracking-wider">Default Admin Account (created inside the new portal)</div>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <label><span class="text-slate-600">Admin Full Name <span class="text-rose-500">*</span></span>
+                        <input name="admin_name" required placeholder="Owner / manager name" class="mt-1 w-full border rounded-md px-3 py-2">
+                    </label>
+                    <label><span class="text-slate-600">Admin Email <span class="text-rose-500">*</span></span>
+                        <input name="admin_email" type="email" required placeholder="admin@partner.com" class="mt-1 w-full border rounded-md px-3 py-2">
+                    </label>
+                    <label><span class="text-slate-600">Admin Password <span class="text-rose-500">*</span></span>
+                        <input name="admin_password" type="text" required minlength="6" placeholder="At least 6 characters" class="mt-1 w-full border rounded-md px-3 py-2 font-mono">
+                    </label>
+                    <label><span class="text-slate-600">Contact Phone</span>
+                        <input name="contact_phone" placeholder="+92…" class="mt-1 w-full border rounded-md px-3 py-2">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Plan -->
+            <div>
+                <div class="text-xs font-bold text-slate-500 uppercase mb-2 tracking-wider">Plan</div>
+                <div class="flex gap-3 text-sm">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="plan" value="standard" checked class="peer sr-only">
+                        <div class="border-2 border-slate-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 rounded-lg p-3 text-center">
+                            <div class="font-semibold text-sm text-slate-700">Standard</div>
+                            <div class="text-[11px] text-slate-500">Core features</div>
+                        </div>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="plan" value="pro" class="peer sr-only">
+                        <div class="border-2 border-slate-200 peer-checked:border-violet-500 peer-checked:bg-violet-50 rounded-lg p-3 text-center">
+                            <div class="font-semibold text-sm text-slate-700">Pro</div>
+                            <div class="text-[11px] text-slate-500">+ AI features</div>
+                        </div>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="plan" value="enterprise" class="peer sr-only">
+                        <div class="border-2 border-slate-200 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 rounded-lg p-3 text-center">
+                            <div class="font-semibold text-sm text-slate-700">Enterprise</div>
+                            <div class="text-[11px] text-slate-500">All features</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Feature Flags (RBAC per tenant) -->
+            <div>
+                <div class="text-xs font-bold text-slate-500 uppercase mb-2 tracking-wider flex items-center justify-between">
+                    <span>Feature Flags · what you grant this partner</span>
+                    <button type="button" onclick="setAllFeatures(true)" class="text-blue-600 hover:underline normal-case text-[11px] font-semibold">Enable all</button>
+                </div>
+                <div id="featureMatrix" class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <!-- populated by JS -->
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1.5"><i class="fa-solid fa-circle-info mr-1"></i>Disabling a feature hides it from the partner's sidebar AND blocks its API endpoints. You can change these anytime later.</p>
+            </div>
+
+            <!-- Notes -->
+            <label class="block text-sm">
+                <span class="text-slate-600">Notes</span>
+                <textarea name="notes" rows="2" placeholder="Internal notes about this partner…" class="mt-1 w-full border rounded-md px-3 py-2"></textarea>
+            </label>
+
+            <div class="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onclick="closeNewTenant()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md">Cancel</button>
+                <button type="submit" id="newTenantSubmit" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-md">
+                    <i class="fa-solid fa-clone mr-1"></i> Provision Portal
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ENTERPRISE BRANDING DRAWER (logo, letterhead, office name, demand format, receipt template) -->
+<div id="brandDrawer" class="fixed inset-0 bg-black/40 hidden z-50">
+    <div class="absolute right-0 top-0 h-full w-full md:w-[60vw] md:min-w-[680px] md:max-w-[920px] bg-white shadow-2xl flex flex-col">
+        <div class="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+            <div>
+                <h3 class="text-base font-bold flex items-center gap-2"><i class="fa-solid fa-palette"></i> Enterprise Branding · <span id="brandTenantName">—</span></h3>
+                <p class="text-xs text-indigo-100 mt-0.5">Per-tenant logo, letterhead, office identity &amp; document format</p>
+            </div>
+            <button onclick="closeBrandingDrawer()" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
+
+            <!-- Logo upload card -->
+            <div class="bg-white rounded-lg border border-slate-200 p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <i class="fa-solid fa-image text-indigo-500"></i>
+                    <h4 class="font-bold text-slate-800 text-sm">Company Logo</h4>
+                </div>
+                <p class="text-xs text-slate-500 mb-3">Shown in navbar &amp; on every printed document. PNG/JPG/SVG, max ~2 MB recommended.</p>
+                <div class="flex items-center gap-4">
+                    <div class="w-28 h-28 rounded-lg bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden">
+                        <img id="brandLogoPreview" src="" alt="" class="max-w-full max-h-full hidden">
+                        <span id="brandLogoEmpty" class="text-xs text-slate-400 text-center px-2">No logo<br>uploaded</span>
+                    </div>
+                    <div class="flex-1">
+                        <input type="file" id="brandLogoInput" accept="image/*" class="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-indigo-600 file:text-white file:font-semibold file:cursor-pointer hover:file:bg-indigo-700">
+                        <button onclick="uploadTenantLogo()" id="brandLogoBtn" class="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded">
+                            <i class="fa-solid fa-upload mr-1"></i> Upload Logo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Letterhead upload card -->
+            <div class="bg-white rounded-lg border border-slate-200 p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <i class="fa-solid fa-file-lines text-purple-500"></i>
+                    <h4 class="font-bold text-slate-800 text-sm">Letterhead Background</h4>
+                </div>
+                <p class="text-xs text-slate-500 mb-3">Full-page A4 background used by candidate print-profile, receipts &amp; protector letters. JPG/PNG, ideally 2480×3508 px (A4 @ 300 DPI).</p>
+                <div class="flex items-start gap-4">
+                    <div class="w-28 h-40 rounded-lg bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden">
+                        <img id="brandLhPreview" src="" alt="" class="max-w-full max-h-full hidden">
+                        <span id="brandLhEmpty" class="text-xs text-slate-400 text-center px-2">No letterhead<br>uploaded</span>
+                    </div>
+                    <div class="flex-1">
+                        <input type="file" id="brandLhInput" accept="image/*" class="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-purple-600 file:text-white file:font-semibold file:cursor-pointer hover:file:bg-purple-700">
+                        <button onclick="uploadTenantLetterhead()" id="brandLhBtn" class="mt-3 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-4 py-2 rounded">
+                            <i class="fa-solid fa-upload mr-1"></i> Upload Letterhead
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Office identity form -->
+            <div class="bg-white rounded-lg border border-slate-200 p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <i class="fa-solid fa-building text-emerald-500"></i>
+                    <h4 class="font-bold text-slate-800 text-sm">Office Identity &amp; Document Format</h4>
+                </div>
+                <form id="brandForm" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <label class="block">
+                        <span class="text-slate-600 text-xs font-semibold">Office Name</span>
+                        <input name="office_name" type="text" placeholder="e.g. Lahore Head Office" class="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </label>
+                    <label class="block">
+                        <span class="text-slate-600 text-xs font-semibold">Short Name (navbar)</span>
+                        <input name="short_name" type="text" class="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </label>
+                    <label class="block">
+                        <span class="text-slate-600 text-xs font-semibold">Subtitle</span>
+                        <input name="subtitle" type="text" placeholder="Overseas Employment Promoters" class="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 text-sm">
+                    </label>
+                    <label class="block">
+                        <span class="text-slate-600 text-xs font-semibold">Primary Color</span>
+                        <input name="primary_color" type="color" class="mt-1 w-16 h-9 border border-slate-300 rounded-md p-0.5">
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="text-slate-600 text-xs font-semibold">Demand File # Format</span>
+                        <input name="demand_format" type="text" placeholder='e.g. "DEM-{YYYY}-{####}" or "DTC/786/80/{####}"' class="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 text-sm font-mono">
+                        <span class="text-[11px] text-slate-400 mt-1 block">Placeholders: <code class="bg-slate-100 px-1 rounded">{YYYY}</code> year · <code class="bg-slate-100 px-1 rounded">{MM}</code> month · <code class="bg-slate-100 px-1 rounded">{####}</code> 4-digit sequence</span>
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="text-slate-600 text-xs font-semibold">Receipt Template (HTML/text)</span>
+                        <textarea name="receipt_template" rows="6" placeholder='Custom receipt footer/body — supports basic HTML. Leave blank for default.' class="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 text-xs font-mono"></textarea>
+                    </label>
+                </form>
+            </div>
+        </div>
+        <div class="px-6 py-3 border-t bg-white flex justify-end gap-2">
+            <button onclick="closeBrandingDrawer()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 border border-slate-300 rounded-md">Close</button>
+            <button onclick="saveBranding()" id="brandSaveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2 rounded-md">
+                <i class="fa-solid fa-floppy-disk mr-1"></i> Save Branding
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- FEATURE FLAGS DRAWER -->
+<div id="ffDrawer" class="fixed inset-0 bg-black/40 hidden z-50">
+    <div class="absolute right-0 top-0 h-full w-full md:w-[55vw] md:min-w-[640px] md:max-w-[920px] bg-white shadow-2xl flex flex-col">
+        <div class="px-6 py-4 border-b flex items-center justify-between">
+            <div>
+                <h3 class="text-base font-bold text-slate-800">Feature Flags · <span id="ffName" class="text-blue-600">—</span></h3>
+                <p class="text-xs text-slate-500 mt-0.5">Toggle what this partner's portal can do.</p>
+            </div>
+            <button onclick="closeFfDrawer()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <div id="ffBody" class="flex-1 overflow-y-auto p-6"></div>
+        <div class="px-6 py-3 border-t bg-slate-50 flex justify-end gap-2">
+            <button onclick="closeFfDrawer()" class="px-4 py-2 text-sm text-slate-600 hover:bg-white border border-slate-300 rounded-md">Close</button>
+            <button onclick="saveFeatureFlags()" id="ffSave" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-md">
+                <i class="fa-solid fa-floppy-disk mr-1"></i> Save Flags
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let FEATURE_DEFAULTS = {};
+let CURRENT_FF_TENANT = null;
+
+const FEATURE_DESCR = {
+    dashboard:        ["Dashboard",          "Main overview page (always on)", true],
+    clients:          ["Clients",            "Client / sponsor management", true],
+    demands:          ["Demand Files",       "Demand file workflow", true],
+    candidates:       ["Candidates",         "Candidate management", true],
+    documents:        ["Documents page",     "Document template library"],
+    document_overlay: ["Document Overlay engine", "Canvas template designer & coordinate engine"],
+    ai_chatbot:       ["AI Chatbot (DtcBot)", "Floating LLM assistant widget"],
+    ai_ocr:           ["AI · Passport OCR",  "OCR-driven passport auto-fill"],
+    agents:           ["Sub-Agents",         "Sub-agent / partner cashbook"],
+    reports:          ["Reports",            "Analytics & reports"],
+    settings:         ["Settings menu",      "General / Depositors / Service charges (admin)"],
+    role_creation:    ["Role creation",      "Custom RBAC roles management"],
+    login_history:    ["Login history",      "Login audit log"],
+    depositors:       ["Depositors",         "Depositor records"],
+    service_charges:  ["Service charges",    "Service charge schedule"],
+};
+
+function escapeHtml(s) {
+    return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function init() {
+    const { data } = await axios.get('/api/tenants/_meta/feature-defaults');
+    FEATURE_DEFAULTS = data || {};
+    renderFeatureMatrix();
+    loadTenants();
+}
+
+function renderFeatureMatrix(prefill) {
+    const wrap = document.getElementById('featureMatrix');
+    wrap.innerHTML = Object.keys(FEATURE_DEFAULTS).map(k => {
+        const meta = FEATURE_DESCR[k] || [k, '', false];
+        const [label, descr, locked] = meta;
+        const checked = (prefill ? prefill[k] : FEATURE_DEFAULTS[k]);
+        return `<label class="flex items-start gap-2 cursor-pointer ${locked?'opacity-60':''}">
+            <input type="checkbox" name="feat_${k}" ${checked?'checked':''} ${locked?'disabled':''} class="mt-1 accent-blue-600">
+            <span>
+                <span class="font-semibold text-slate-700 text-[12.5px]">${escapeHtml(label)}</span>
+                <span class="block text-[11px] text-slate-500">${escapeHtml(descr)}</span>
+            </span>
+        </label>`;
+    }).join('');
+}
+
+function setAllFeatures(val) {
+    document.querySelectorAll('#featureMatrix input[type="checkbox"]:not([disabled])').forEach(cb => cb.checked = !!val);
+}
+
+function gatherFeatures(scope='form') {
+    const root = scope === 'drawer' ? '#ffBody' : '#featureMatrix';
+    const features = {};
+    document.querySelectorAll(`${root} input[type="checkbox"]`).forEach(cb => {
+        const k = cb.name.replace(/^feat_/, '');
+        features[k] = !!cb.checked;
+    });
+    return features;
+}
+
+async function loadTenants() {
+    try {
+        const { data } = await axios.get('/api/tenants');
+        const items = data.items || [];
+        document.getElementById('statTotal').textContent = items.length;
+        document.getElementById('statActive').textContent = items.filter(t => t.status === 'active').length;
+        document.getElementById('statSusp').textContent = items.filter(t => t.status === 'suspended').length;
+        document.getElementById('statStore').textContent = (items.length * 1.2).toFixed(1) + ' MB';
+        document.getElementById('lastRefresh').textContent = 'Refreshed ' + new Date().toLocaleTimeString();
+
+        const tbody = document.getElementById('tenantsTbody');
+        if (items.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-slate-400 py-12">
+                <i class="fa-solid fa-sitemap text-3xl block mb-2"></i>
+                No portal copies yet. Click <b>Copy Portal for New Partner</b> to provision the first one.
+            </td></tr>`;
+            return;
+        }
+        tbody.innerHTML = items.map(t => {
+            const feats = t.features || {};
+            const enabledCount = Object.values(feats).filter(Boolean).length;
+            const totalCount = Object.keys(feats).length;
+            const planClr = { standard:'bg-blue-50 text-blue-700', pro:'bg-violet-50 text-violet-700', enterprise:'bg-emerald-50 text-emerald-700' }[t.plan] || 'bg-slate-100 text-slate-700';
+            const statClr = { active:'bg-emerald-50 text-emerald-700', suspended:'bg-amber-50 text-amber-700', archived:'bg-slate-100 text-slate-500' }[t.status] || 'bg-slate-100 text-slate-700';
+            return `<tr>
+                <td>
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-md flex items-center justify-center text-white text-sm font-bold" style="background:${escapeHtml(t.primary_color||'#2563eb')}">${escapeHtml((t.short_name||t.company_name||'?')[0])}</div>
+                        <div>
+                            <div class="font-semibold text-slate-800 text-[13px]">${escapeHtml(t.company_name)}</div>
+                            <div class="text-[11px] text-slate-500">${escapeHtml(t.short_name||'')}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="font-mono text-xs text-slate-600">${escapeHtml(t.slug)}</td>
+                <td><span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ${planClr}">${escapeHtml((t.plan||'').toUpperCase())}</span></td>
+                <td><span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ${statClr}">${escapeHtml((t.status||'').toUpperCase())}</span></td>
+                <td>
+                    <div class="text-[12px] text-slate-700 font-semibold">${enabledCount}/${totalCount}</div>
+                    <div class="w-24 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                        <div class="h-full bg-blue-500" style="width:${totalCount?Math.round(enabledCount/totalCount*100):0}%"></div>
+                    </div>
+                </td>
+                <td class="text-xs text-slate-700">${escapeHtml(t.admin_email||'—')}</td>
+                <td class="text-xs text-slate-500">${t.created_at ? t.created_at.split('T')[0] : '—'}</td>
+                <td class="text-right whitespace-nowrap">
+                    <button onclick="openBrandingDrawer(${t.id})" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded text-xs font-semibold" title="Branding (logo / letterhead / office name)"><i class="fa-solid fa-palette mr-1"></i>Brand</button>
+                    <button onclick="openFfDrawer(${t.id})" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-semibold" title="Feature flags"><i class="fa-solid fa-sliders mr-1"></i>Flags</button>
+                    <button onclick="toggleSuspend(${t.id}, '${t.status}')" class="text-amber-600 hover:bg-amber-50 px-2 py-1 rounded text-xs font-semibold" title="${t.status==='active'?'Suspend':'Reactivate'}"><i class="fa-solid fa-${t.status==='active'?'pause':'play'}"></i></button>
+                    <button onclick="deleteTenant(${t.id}, '${escapeHtml(t.company_name).replace(/'/g, "\\'")}')" class="text-rose-500 hover:bg-rose-50 px-2 py-1 rounded text-xs font-semibold" title="Archive"><i class="fa-regular fa-trash-can"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        document.getElementById('tenantsTbody').innerHTML = `<tr><td colspan="8" class="text-center text-rose-500 py-6">Could not load tenants: ${escapeHtml(e.message)}</td></tr>`;
+    }
+}
+
+function openNewTenant() {
+    document.getElementById('newTenantForm').reset();
+    renderFeatureMatrix();  // reset checkboxes to defaults
+    document.querySelector('input[name="primary_color"]').value = '#2563eb';
+    const m = document.getElementById('newTenantModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeNewTenant() {
+    const m = document.getElementById('newTenantModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+}
+
+async function submitNewTenant(ev) {
+    ev.preventDefault();
+    const f = ev.target;
+    const payload = {
+        company_name: f.elements['company_name'].value.trim(),
+        short_name: f.elements['short_name'].value.trim() || null,
+        subtitle: f.elements['subtitle'].value.trim() || null,
+        primary_color: f.elements['primary_color'].value || '#2563eb',
+        admin_name: f.elements['admin_name'].value.trim(),
+        admin_email: f.elements['admin_email'].value.trim(),
+        admin_password: f.elements['admin_password'].value,
+        contact_phone: f.elements['contact_phone'].value.trim() || null,
+        plan: f.elements['plan'].value,
+        features: gatherFeatures('form'),
+        notes: f.elements['notes'].value.trim() || null,
+    };
+    const btn = document.getElementById('newTenantSubmit');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Provisioning…';
+    try {
+        const { data } = await axios.post('/api/tenants', payload);
+        closeNewTenant();
+        loadTenants();
+        showToast(`✅ Portal "${data.company_name}" provisioned. Admin can sign in with ${data.admin_email}`);
+    } catch (err) {
+        alert('Failed to provision: ' + ((err.response && err.response.data && err.response.data.detail) || err.message));
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-clone mr-1"></i> Provision Portal';
+    }
+}
+
+async function openFfDrawer(tenantId) {
+    CURRENT_FF_TENANT = tenantId;
+    try {
+        const { data } = await axios.get(`/api/tenants/${tenantId}`);
+        document.getElementById('ffName').textContent = data.company_name;
+        const feats = data.features || {};
+        const body = document.getElementById('ffBody');
+        body.innerHTML = Object.keys(FEATURE_DEFAULTS).map(k => {
+            const meta = FEATURE_DESCR[k] || [k, '', false];
+            const [label, descr, locked] = meta;
+            const checked = (k in feats) ? feats[k] : FEATURE_DEFAULTS[k];
+            return `<label class="flex items-start gap-3 py-3 border-b border-slate-100 cursor-pointer ${locked?'opacity-60':''}">
+                <input type="checkbox" name="feat_${k}" ${checked?'checked':''} ${locked?'disabled':''} class="mt-1 accent-blue-600 w-4 h-4">
+                <div class="flex-1">
+                    <div class="font-semibold text-slate-800 text-sm">${escapeHtml(label)}</div>
+                    <div class="text-[12px] text-slate-500 mt-0.5">${escapeHtml(descr)}</div>
+                </div>
+                <span class="text-[10px] uppercase font-bold tracking-wider ${checked?'text-emerald-600':'text-slate-400'}">${checked?'ON':'OFF'}</span>
+            </label>`;
+        }).join('');
+        // Live ON/OFF label toggle
+        body.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', () => {
+                const lbl = cb.closest('label').querySelector('span:last-child');
+                lbl.textContent = cb.checked ? 'ON' : 'OFF';
+                lbl.className = `text-[10px] uppercase font-bold tracking-wider ${cb.checked?'text-emerald-600':'text-slate-400'}`;
+            });
+        });
+        document.getElementById('ffDrawer').classList.remove('hidden');
+    } catch (e) {
+        alert('Failed to load tenant: ' + e.message);
+    }
+}
+function closeFfDrawer() {
+    document.getElementById('ffDrawer').classList.add('hidden');
+    CURRENT_FF_TENANT = null;
+}
+async function saveFeatureFlags() {
+    if (!CURRENT_FF_TENANT) return;
+    const features = gatherFeatures('drawer');
+    const btn = document.getElementById('ffSave');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving…';
+    try {
+        await axios.put(`/api/tenants/${CURRENT_FF_TENANT}/features`, { features });
+        closeFfDrawer();
+        loadTenants();
+        showToast('✅ Feature flags updated');
+    } catch (e) {
+        alert('Failed to save: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Save Flags';
+    }
+}
+
+async function toggleSuspend(tenantId, currentStatus) {
+    const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+    if (!confirm(`Change status to "${newStatus}"?`)) return;
+    try {
+        await axios.put(`/api/tenants/${tenantId}`, { status: newStatus });
+        loadTenants();
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function deleteTenant(tenantId, name) {
+    if (!confirm(`Archive portal "${name}"?\n\nThe database file will be moved to data/tenants/archive/ and the tenant row removed. This cannot be undone via the UI (but the .db file is preserved).`)) return;
+    try {
+        await axios.delete(`/api/tenants/${tenantId}`);
+        loadTenants();
+        showToast(`Archived "${name}"`);
+    } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ---------------- Enterprise Branding Drawer ----------------
+let CURRENT_BRAND_TENANT = null;
+
+async function openBrandingDrawer(tenantId) {
+    CURRENT_BRAND_TENANT = tenantId;
+    try {
+        const { data } = await axios.get(`/api/tenants/${tenantId}`);
+        document.getElementById('brandTenantName').textContent = data.company_name || '—';
+        // Logo preview
+        const logoImg = document.getElementById('brandLogoPreview');
+        const logoEmpty = document.getElementById('brandLogoEmpty');
+        if (data.logo_url) {
+            logoImg.src = data.logo_url + '?_=' + Date.now();
+            logoImg.classList.remove('hidden');
+            logoEmpty.classList.add('hidden');
+        } else {
+            logoImg.classList.add('hidden'); logoEmpty.classList.remove('hidden');
+        }
+        // Letterhead preview
+        const lhImg = document.getElementById('brandLhPreview');
+        const lhEmpty = document.getElementById('brandLhEmpty');
+        if (data.letterhead_url) {
+            lhImg.src = data.letterhead_url + '?_=' + Date.now();
+            lhImg.classList.remove('hidden');
+            lhEmpty.classList.add('hidden');
+        } else {
+            lhImg.classList.add('hidden'); lhEmpty.classList.remove('hidden');
+        }
+        // Identity form
+        const f = document.getElementById('brandForm');
+        f.elements['office_name'].value = data.office_name || '';
+        f.elements['short_name'].value = data.short_name || '';
+        f.elements['subtitle'].value = data.subtitle || '';
+        f.elements['primary_color'].value = data.primary_color || '#2563eb';
+        f.elements['demand_format'].value = data.demand_format || '';
+        f.elements['receipt_template'].value = data.receipt_template || '';
+        document.getElementById('brandDrawer').classList.remove('hidden');
+    } catch (e) {
+        alert('Failed to load tenant branding: ' + ((e.response && e.response.data && e.response.data.detail) || e.message));
+    }
+}
+
+function closeBrandingDrawer() {
+    document.getElementById('brandDrawer').classList.add('hidden');
+    CURRENT_BRAND_TENANT = null;
+    document.getElementById('brandLogoInput').value = '';
+    document.getElementById('brandLhInput').value = '';
+}
+
+async function uploadTenantLogo() {
+    if (!CURRENT_BRAND_TENANT) return;
+    const inp = document.getElementById('brandLogoInput');
+    if (!inp.files || !inp.files[0]) { alert('Please pick an image file first.'); return; }
+    const fd = new FormData();
+    fd.append('file', inp.files[0]);
+    const btn = document.getElementById('brandLogoBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Uploading…';
+    try {
+        const { data } = await axios.post(`/api/tenants/${CURRENT_BRAND_TENANT}/logo`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (data.logo_url) {
+            const img = document.getElementById('brandLogoPreview');
+            img.src = data.logo_url + '?_=' + Date.now();
+            img.classList.remove('hidden');
+            document.getElementById('brandLogoEmpty').classList.add('hidden');
+        }
+        showToast('✅ Logo uploaded');
+        loadTenants();
+    } catch (e) {
+        alert('Upload failed: ' + ((e.response && e.response.data && e.response.data.detail) || e.message));
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-upload mr-1"></i> Upload Logo';
+    }
+}
+
+async function uploadTenantLetterhead() {
+    if (!CURRENT_BRAND_TENANT) return;
+    const inp = document.getElementById('brandLhInput');
+    if (!inp.files || !inp.files[0]) { alert('Please pick an image file first.'); return; }
+    const fd = new FormData();
+    fd.append('file', inp.files[0]);
+    const btn = document.getElementById('brandLhBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Uploading…';
+    try {
+        const { data } = await axios.post(`/api/tenants/${CURRENT_BRAND_TENANT}/letterhead`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (data.letterhead_url) {
+            const img = document.getElementById('brandLhPreview');
+            img.src = data.letterhead_url + '?_=' + Date.now();
+            img.classList.remove('hidden');
+            document.getElementById('brandLhEmpty').classList.add('hidden');
+        }
+        showToast('✅ Letterhead uploaded');
+    } catch (e) {
+        alert('Upload failed: ' + ((e.response && e.response.data && e.response.data.detail) || e.message));
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-upload mr-1"></i> Upload Letterhead';
+    }
+}
+
+async function saveBranding() {
+    if (!CURRENT_BRAND_TENANT) return;
+    const f = document.getElementById('brandForm');
+    const payload = {
+        office_name: f.elements['office_name'].value.trim(),
+        short_name: f.elements['short_name'].value.trim() || null,
+        subtitle: f.elements['subtitle'].value.trim() || null,
+        primary_color: f.elements['primary_color'].value || '#2563eb',
+        demand_format: f.elements['demand_format'].value.trim(),
+        receipt_template: f.elements['receipt_template'].value,
+    };
+    const btn = document.getElementById('brandSaveBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving…';
+    try {
+        await axios.put(`/api/tenants/${CURRENT_BRAND_TENANT}/branding`, payload);
+        showToast('✅ Branding saved');
+        loadTenants();
+    } catch (e) {
+        alert('Save failed: ' + ((e.response && e.response.data && e.response.data.detail) || e.message));
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Save Branding';
+    }
+}
+
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'fixed top-5 right-5 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-lg text-sm font-semibold z-[100]';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(), 400); }, 2500);
+}
+
+init();
+</script>
+{% endblock %}

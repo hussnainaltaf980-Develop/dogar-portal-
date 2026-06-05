@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Login History · {{ company_name }}{% endblock %}
+{% block page_title %}Login History{% endblock %}
+{% block content %}
+
+<div class="mb-5">
+    <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+        <i class="fa-regular fa-clock text-blue-600"></i> Login history &amp; attempts
+    </h1>
+    <p class="text-sm text-slate-500 mt-0.5">Recent sign-in attempts and rate-limit events.</p>
+</div>
+
+<div class="card mb-5">
+    <div class="card-body flex flex-wrap items-end gap-3">
+        <div>
+            <label class="form-label">Status</label>
+            <select id="fStatus" class="form-select w-44">
+                <option value="">All statuses</option>
+                <option value="Success">Success</option>
+                <option value="Failed">Failed</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">From</label>
+            <input type="date" id="fFrom" class="form-input w-40">
+        </div>
+        <div>
+            <label class="form-label">To</label>
+            <input type="date" id="fTo" class="form-input w-40">
+        </div>
+        <button onclick="resetDates()" class="px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50">Reset dates</button>
+        <div class="flex-1 min-w-[200px]">
+            <label class="form-label">Search</label>
+            <input type="text" id="fQ" placeholder="Search by email" class="form-input">
+        </div>
+        <button onclick="load()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+            <i class="fa-solid fa-filter mr-1"></i> Apply
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date &amp; time</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>IP address</th>
+                </tr>
+            </thead>
+            <tbody id="rows"><tr><td colspan="4" class="text-center py-10 text-slate-400">Loading…</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+function resetDates() {
+    document.getElementById('fFrom').value = '';
+    document.getElementById('fTo').value = '';
+    load();
+}
+async function load() {
+    const params = new URLSearchParams();
+    const status = document.getElementById('fStatus').value;
+    const from = document.getElementById('fFrom').value;
+    const to = document.getElementById('fTo').value;
+    const q = document.getElementById('fQ').value.trim();
+    if (status) params.set('status', status);
+    if (from) params.set('date_from', from);
+    if (to) params.set('date_to', to);
+    if (q) params.set('q', q);
+    try {
+        const res = await axios.get('/api/users/login-history?' + params.toString());
+        const items = res.data.items || [];
+        const rows = document.getElementById('rows');
+        if (!items.length) {
+            rows.innerHTML = `<tr><td colspan="4" class="text-center py-10 text-slate-400">No matching login events.</td></tr>`;
+            return;
+        }
+        rows.innerHTML = items.map(r => {
+            const dt = r.occurred_at ? dayjs(r.occurred_at).format('YYYY-MM-DD HH:mm') : '—';
+            const badge = r.status === 'Success'
+              ? '<span class="badge badge-active">Success</span>'
+              : '<span class="badge badge-rejected">Failed</span>';
+            return `<tr>
+                <td class="font-mono text-[12.5px]">${dt}</td>
+                <td>${r.email}</td>
+                <td>${badge}</td>
+                <td class="font-mono text-[12px] text-slate-500">${r.ip_address || '—'}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        document.getElementById('rows').innerHTML = `<tr><td colspan="4" class="text-center py-10 text-rose-500">${e.response?.data?.detail || e.message}</td></tr>`;
+    }
+}
+load();
+</script>
+{% endblock %}

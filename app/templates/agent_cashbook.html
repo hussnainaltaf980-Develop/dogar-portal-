@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Agent Cashbook · {{ company_name }}{% endblock %}
+{% block page_title %}Agent Cash Book / Ledger{% endblock %}
+
+{% block content %}
+<div id="agentHeader" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4"></div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <div class="bg-gradient-to-br from-red-500 to-red-600 text-white p-4 rounded-xl">
+        <p class="text-xs uppercase opacity-80">Total Debit</p>
+        <p class="text-2xl font-bold mt-1">PKR <span id="totalDebit">0</span></p>
+    </div>
+    <div class="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white p-4 rounded-xl">
+        <p class="text-xs uppercase opacity-80">Total Credit</p>
+        <p class="text-2xl font-bold mt-1">PKR <span id="totalCredit">0</span></p>
+    </div>
+    <div class="bg-gradient-to-br from-brand-blue to-blue-700 text-white p-4 rounded-xl">
+        <p class="text-xs uppercase opacity-80">Balance</p>
+        <p class="text-2xl font-bold mt-1">PKR <span id="totalBalance">0</span></p>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="font-semibold text-slate-700">Transactions</h3>
+        <div class="flex gap-2">
+            <button onclick="openEntryModal('debit')" class="btn btn-sm" style="background:#dc2626;color:white">
+                <i class="fa-solid fa-arrow-down"></i> Add Debit
+            </button>
+            <button onclick="openEntryModal('credit')" class="btn btn-sm" style="background:#059669;color:white">
+                <i class="fa-solid fa-arrow-up"></i> Add Credit
+            </button>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Details</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th>Method</th><th>Ref</th><th class="text-right">Actions</th></tr></thead>
+            <tbody id="entriesBody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const AGENT_ID = {{ agent_id }};
+let AGENT = null;
+async function loadAll() {
+    const [a, entries] = await Promise.all([axios.get(`/api/agents/${AGENT_ID}`), axios.get(`/api/agents/${AGENT_ID}/cashbook`)]);
+    AGENT = a.data;
+    document.getElementById('agentHeader').innerHTML = `
+        <div class="flex items-start justify-between">
+            <div>
+                <h2 class="text-2xl font-bold text-brand-green-dark">${escapeHtml(AGENT.name)}</h2>
+                <p class="text-sm text-slate-600">${escapeHtml(AGENT.company_name||'')} · ${escapeHtml(AGENT.city||'')}</p>
+                <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-phone"></i> ${escapeHtml(AGENT.phone||'')} · <i class="fa-solid fa-mobile"></i> ${escapeHtml(AGENT.mobile||'')}</p>
+            </div>
+            <a href="/agents" class="btn btn-outline btn-sm"><i class="fa-solid fa-arrow-left"></i> Back to Agents</a>
+        </div>`;
+    let td = 0, tc = 0;
+    entries.data.forEach(e => { td += e.debit; tc += e.credit; });
+    document.getElementById('totalDebit').textContent = fmtMoney(td);
+    document.getElementById('totalCredit').textContent = fmtMoney(tc);
+    document.getElementById('totalBalance').textContent = fmtMoney(td - tc);
+
+    const body = document.getElementById('entriesBody');
+    if (!entries.data.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-slate-400 py-8">No transactions yet.</td></tr>'; return; }
+    body.innerHTML = entries.data.map(e => `
+        <tr>
+            <td class="text-xs">${fmtDateTime(e.datetime)}</td>
+            <td>${escapeHtml(e.details)}</td>
+            <td class="text-right font-mono ${e.debit>0?'text-red-600 font-bold':'text-slate-300'}">${e.debit>0?fmtMoney(e.debit):''}</td>
+            <td class="text-right font-mono ${e.credit>0?'text-emerald-600 font-bold':'text-slate-300'}">${e.credit>0?fmtMoney(e.credit):''}</td>
+            <td><span class="badge badge-active">${escapeHtml(e.method)}</span></td>
+            <td class="text-xs text-slate-400">${escapeHtml(e.ref_id||'')}</td>
+            <td class="text-right"><button onclick="deleteEntry(${e.id})" class="btn btn-outline btn-sm text-red-600"><i class="fa-solid fa-trash"></i></button></td>
+        </tr>
+    `).join('');
+}
+function openEntryModal(type) {
+    openModal(`
+    <form id="entryForm" class="p-6">
+        <h3 class="text-lg font-semibold mb-3"><i class="fa-solid fa-${type=='debit'?'arrow-down text-red-500':'arrow-up text-emerald-500'} mr-2"></i>Add ${type.toUpperCase()} Entry</h3>
+        <div class="grid grid-cols-2 gap-3">
+            <div class="col-span-2"><label class="form-label">Details *</label><input name="details" required class="form-input" placeholder="Ticket / Payment description"></div>
+            <div><label class="form-label">Amount *</label><input name="amount" type="number" min="0" step="0.01" required class="form-input"></div>
+            <div><label class="form-label">Method</label><select name="method" class="form-select"><option>cash</option><option>cheque</option><option>transfer</option></select></div>
+            <div><label class="form-label">Date</label><input name="datetime" type="datetime-local" class="form-input" value="${new Date().toISOString().slice(0,16)}"></div>
+            <div><label class="form-label">Reference / Cheque #</label><input name="ref_id" class="form-input"></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-4 pt-4 border-t"><button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+    </form>`);
+    document.getElementById('entryForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = Object.fromEntries(new FormData(e.target).entries());
+        const amount = parseFloat(fd.amount);
+        const payload = {
+            agent_id: AGENT_ID,
+            details: fd.details,
+            debit: type=='debit'?amount:0,
+            credit: type=='credit'?amount:0,
+            method: fd.method,
+            ref_id: fd.ref_id,
+            datetime: fd.datetime ? new Date(fd.datetime).toISOString() : null,
+        };
+        await axios.post('/api/agents/cashbook', payload);
+        closeModal();
+        await loadAll();
+        toast('Entry added');
+    });
+}
+async function deleteEntry(id) {
+    if (!confirm('Delete this entry?')) return;
+    await axios.delete(`/api/agents/cashbook/${id}`);
+    await loadAll();
+}
+loadAll();
+</script>
+{% endblock %}

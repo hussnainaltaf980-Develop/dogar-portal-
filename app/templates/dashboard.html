@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · {{ company_name }}{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Greeting + Global Search -->
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800"><span id="timeGreeting">Welcome</span>, {{ user.name if user else 'Administrator' }}!</h1>
+        <p class="text-sm text-slate-500 mt-0.5">Overview of {{ company_name }}</p>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div>
+        <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Quick Actions</p>
+        <div class="flex flex-wrap gap-2">
+            <a href="/demands" onclick="event.preventDefault(); openNewDemandFromDashboard()" class="quick-action-btn">
+                <span class="qa-icon"><i class="fa-solid fa-folder-plus"></i></span> New Demand File
+            </a>
+            <a href="/clients" onclick="event.preventDefault(); openNewClientFromDashboard()" class="quick-action-btn">
+                <span class="qa-icon"><i class="fa-solid fa-building-circle-plus"></i></span> Add Client
+            </a>
+            <a href="/candidates" class="quick-action-btn">
+                <span class="qa-icon"><i class="fa-solid fa-user-plus"></i></span> New Candidate
+            </a>
+            <a href="/agents" class="quick-action-btn">
+                <span class="qa-icon"><i class="fa-solid fa-handshake"></i></span> Add Sub-Agent
+            </a>
+            <a href="/visa-categories" class="quick-action-btn">
+                <span class="qa-icon"><i class="fa-solid fa-tags"></i></span> Visa Categories
+            </a>
+            <a href="/settings" class="quick-action-btn">
+                <span class="qa-icon"><i class="fa-solid fa-gear"></i></span> Settings
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards — 4-up with per-module color tinting -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="statsCards">
+        <a href="/candidates" class="stat-tile hover:shadow-md transition block group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="stat-label"><i class="fa-solid fa-users opacity-60 mr-1"></i>Candidates</p>
+                    <p class="stat-value mt-1" id="stat-candidates">—</p>
+                    <p class="text-xs text-blue-600 mt-1.5 group-hover:underline font-medium">View all →</p>
+                </div>
+                <div class="w-11 h-11 rounded-xl flex items-center justify-center stat-icon-blue shrink-0">
+                    <i class="fa-solid fa-users text-lg"></i>
+                </div>
+            </div>
+        </a>
+        <a href="/clients" class="stat-tile hover:shadow-md transition block group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="stat-label"><i class="fa-regular fa-building opacity-60 mr-1"></i>Clients</p>
+                    <p class="stat-value mt-1" id="stat-clients">—</p>
+                    <p class="text-xs text-emerald-600 mt-1.5 group-hover:underline font-medium">View all →</p>
+                </div>
+                <div class="w-11 h-11 rounded-xl flex items-center justify-center stat-icon-green shrink-0">
+                    <i class="fa-regular fa-building text-lg"></i>
+                </div>
+            </div>
+        </a>
+        <a href="/demands" class="stat-tile hover:shadow-md transition block group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="stat-label"><i class="fa-regular fa-folder-open opacity-60 mr-1"></i>Demand Files</p>
+                    <p class="stat-value mt-1" id="stat-demands">—</p>
+                    <p class="text-xs text-amber-600 mt-1.5 group-hover:underline font-medium">View all →</p>
+                </div>
+                <div class="w-11 h-11 rounded-xl flex items-center justify-center stat-icon-amber shrink-0">
+                    <i class="fa-regular fa-folder-open text-lg"></i>
+                </div>
+            </div>
+        </a>
+        <a href="/visa-categories" class="stat-tile hover:shadow-md transition block group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="stat-label"><i class="fa-solid fa-tags opacity-60 mr-1"></i>Visa Categories</p>
+                    <p class="stat-value mt-1" id="stat-visa-categories">—</p>
+                    <p class="text-xs text-violet-600 mt-1.5 group-hover:underline font-medium">View all →</p>
+                </div>
+                <div class="w-11 h-11 rounded-xl flex items-center justify-center stat-icon-violet shrink-0">
+                    <i class="fa-solid fa-tags text-lg"></i>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Charts row: Recruitment Overview (2/3) + Status Breakdown (1/3) side-by-side -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2 chart-card">
+            <div class="flex items-start justify-between mb-3">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-700">Recruitment Overview</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Demand files &amp; candidates — 12-month trend</p>
+                </div>
+                <div class="flex items-center gap-3 text-[11px] text-slate-500">
+                    <span class="flex items-center gap-1"><span class="inline-block w-3 h-0.5 bg-blue-500 rounded"></span>Demands</span>
+                    <span class="flex items-center gap-1"><span class="inline-block w-3 h-0.5 bg-emerald-500 rounded"></span>Candidates</span>
+                </div>
+            </div>
+            <div style="height: 230px;"><canvas id="recruitmentChart"></canvas></div>
+        </div>
+        <div class="chart-card flex flex-col">
+            <h3 class="text-sm font-semibold text-slate-700 mb-0.5">Status Breakdown</h3>
+            <p class="text-[11px] text-slate-400 mb-3">Candidates by workflow status</p>
+            <div class="flex-1 flex items-center justify-center" style="min-height:180px;"><canvas id="statusChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Top Visa Categories (full-width horizontal bar chart) -->
+    <div class="chart-card">
+        <h3 class="text-sm font-semibold text-slate-700 mb-0.5">Top Visa Categories</h3>
+        <p class="text-[11px] text-slate-400 mb-3">By assigned candidates (quota demand)</p>
+        <div style="height: 240px;"><canvas id="tradesChart"></canvas></div>
+    </div>
+
+    <!-- Recent Candidates Table (matching reference: Name, Arabic Name, Passport No, Destination, Phone) -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-slate-700">Recent Candidates</h3>
+            <a href="/candidates" class="text-xs text-blue-600 hover:underline">View all</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead><tr class="border-b border-slate-100 text-xs text-slate-500 uppercase">
+                    <th class="px-4 py-2 text-left">Name</th>
+                    <th class="px-4 py-2 text-left">Arabic Name</th>
+                    <th class="px-4 py-2 text-left">Passport No</th>
+                    <th class="px-4 py-2 text-left">Destination</th>
+                    <th class="px-4 py-2 text-left">Phone</th>
+                </tr></thead>
+                <tbody id="recentCandidates"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Add Demand Modal (from Dashboard) -->
+<div id="dashDemandModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 overflow-y-auto py-6">
+    <div class="bg-white rounded-xl shadow-xl w-[700px] max-w-[95vw] max-h-[90vh] overflow-y-auto mx-auto">
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="font-bold text-slate-800"><i class="fa-regular fa-folder-open text-blue-600 mr-2"></i>Create New Demand File</h3>
+            <button onclick="closeDashDemandModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <form id="dashDemandForm" class="p-5 space-y-5 text-sm">
+            <!-- Basic Info -->
+            <div>
+                <h4 class="font-semibold text-slate-700 mb-3"><i class="fa-regular fa-circle text-blue-500 mr-1"></i> Basic Information</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block"><span class="text-slate-600 font-medium">Client *</span>
+                        <select name="client_id" required class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" id="dashClientSelect"><option value="">-- Select Client --</option></select>
+                    </label>
+                    <label class="block"><span class="text-slate-600 font-medium">File Number</span>
+                        <input name="file_number" id="dashFileNumber" placeholder="Auto-generated (e.g. DTC/786/8186)" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                        <span class="text-[11px] text-slate-400">Leave blank to auto-generate next sequential number. Format: <code class="text-blue-600">DTC/786/&lt;seq&gt;</code></span>
+                    </label>
+                    <label class="block"><span class="text-slate-600 font-medium">Receiving Date</span><input name="receiving_date" type="date" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Permission No.</span><input name="permission_no" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Permission Date</span><input name="permission_date" type="date" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Reference</span><input name="reference" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                </div>
+            </div>
+            <!-- Sponsor Info -->
+            <div>
+                <h4 class="font-semibold text-slate-700 mb-3"><i class="fa-solid fa-handshake text-blue-500 mr-1"></i> Sponsor Information</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block"><span class="text-slate-600 font-medium">Sponsor Name</span><input name="sponsor_name" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Sponsor Name (Arabic)</span><input name="sponsor_name_arabic" dir="rtl" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="col-span-2"><span class="text-slate-600 font-medium">Sponsor Address</span><textarea name="sponsor_address" rows="2" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></textarea></label>
+                    <label class="col-span-2"><span class="text-slate-600 font-medium">Sponsor Address (Arabic)</span><textarea name="sponsor_address_arabic" rows="2" dir="rtl" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></textarea></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Sponsor Phone</span><input name="sponsor_phone" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Alternate Phone</span><input name="sponsor_alt_phone" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                </div>
+            </div>
+            <!-- Visa Info -->
+            <div>
+                <h4 class="font-semibold text-slate-700 mb-3"><i class="fa-regular fa-id-card text-blue-500 mr-1"></i> Visa Information</h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block"><span class="text-slate-600 font-medium">Visa Number</span><input name="visa_number" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Bataka Number</span><input name="bataka_number" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Visa Issue Date</span><input name="visa_issue_date" type="date" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Visa Issue Date (Hijri)</span><input name="visa_issue_date_hijri" placeholder="e.g. 1446-08-15" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Country</span>
+                        <select name="country" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="Saudi Arabia">Saudi Arabia</option><option value="UAE">UAE</option><option value="Qatar">Qatar</option><option value="Kuwait">Kuwait</option><option value="Oman">Oman</option><option value="Bahrain">Bahrain</option>
+                        </select>
+                    </label>
+                    <label class="block"><span class="text-slate-600 font-medium">Embassy</span>
+                        <select name="embassy" id="dashEmbassySelect" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="">-- Select Embassy --</option>
+                        </select>
+                    </label>
+                    <label class="block"><span class="text-slate-600 font-medium">Document Count</span><input name="document_count" type="number" value="0" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"></label>
+                    <label class="block"><span class="text-slate-600 font-medium">Status</span>
+                        <select name="status" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="active">Active</option><option value="processing">Processing</option><option value="filled">Filled</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" onclick="closeDashDemandModal()" class="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button type="submit" class="px-5 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm">Save Demand</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Quick Add Client Modal (from Dashboard) -->
+<div id="dashClientModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 overflow-y-auto py-6">
+    <div class="bg-white rounded-xl shadow-xl w-[600px] max-w-[95vw] max-h-[90vh] overflow-y-auto mx-auto">
+        <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="font-bold text-slate-800"><i class="fa-regular fa-building text-blue-600 mr-2"></i>Add New Client</h3>
+            <button onclick="closeDashClientModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <form id="dashClientForm" class="p-5 space-y-4 text-sm">
+            <div class="grid grid-cols-2 gap-3">
+                <label class="block col-span-2"><span class="text-slate-600 font-medium">Company Name *</span>
+                    <input name="company_name" required class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="e.g. MUHAMMAD FAISAL JUTT">
+                </label>
+                <label class="block"><span class="text-slate-600 font-medium">Type</span>
+                    <select name="client_type" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2"><option value="Company">Company</option><option value="Individual">Individual</option></select>
+                </label>
+                <label class="block"><span class="text-slate-600 font-medium">Country</span>
+                    <select name="country" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2">
+                        <option value="Saudi Arabia">Saudi Arabia</option><option value="UAE">UAE</option><option value="Qatar">Qatar</option><option value="Kuwait">Kuwait</option><option value="Pakistan">Pakistan</option>
+                    </select>
+                </label>
+                <label class="block"><span class="text-slate-600 font-medium">Phone</span><input name="phone" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="+966..."></label>
+                <label class="block"><span class="text-slate-600 font-medium">Sponsor Name</span><input name="sponsor_name" class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2"></label>
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" onclick="closeDashClientModal()" class="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button type="submit" class="px-5 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm"><i class="fa-solid fa-plus mr-1.5"></i>Add Client</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async () => {
+    // Load dashboard stats
+    try {
+        const r = await axios.get('/api/dashboard/stats');
+        const d = r.data;
+        document.getElementById('stat-clients').textContent = d.totals.clients.toLocaleString();
+        document.getElementById('stat-demands').textContent = d.totals.demands.toLocaleString();
+        document.getElementById('stat-candidates').textContent = d.totals.candidates.toLocaleString();
+        // Visa categories = unique trade names count
+        document.getElementById('stat-visa-categories').textContent = (d.top_trades || []).length > 0 ? d.totals.visa_quota.toLocaleString() : '0';
+
+        // Recruitment Overview - line chart
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        // Simulated monthly data (would come from API in production)
+        const demandMonthly = [120,150,180,220,480,350,280,260,240,200,180,160];
+        const candMonthly =   [80,100,130,170,420,310,240,220,200,170,150,130];
+        new Chart(document.getElementById('recruitmentChart'), {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Demand Files',
+                    data: demandMonthly,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37,99,235,0.07)',
+                    fill: true,
+                    tension: 0.45,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    borderWidth: 2.5,
+                },{
+                    label: 'Candidates',
+                    data: candMonthly,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16,185,129,0.05)',
+                    fill: true,
+                    tension: 0.45,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    borderWidth: 2.5,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.88)',
+                        titleFont: { size: 12, weight: '600' },
+                        bodyFont: { size: 11 },
+                        padding: 10,
+                        cornerRadius: 8,
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 } } },
+                    x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+                }
+            }
+        });
+
+        // Top Trades - horizontal bar chart (matching reference)
+        if (d.top_trades && d.top_trades.length) {
+            new Chart(document.getElementById('tradesChart'), {
+                type: 'bar',
+                data: {
+                    labels: d.top_trades.map(t => t.trade),
+                    datasets: [{
+                        label: 'Quantity',
+                        data: d.top_trades.map(t => t.qty),
+                        backgroundColor: '#2563eb',
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, grid: { color: '#f1f5f9' } }, y: { grid: { display: false } } }
+                }
+            });
+        }
+
+        // Candidate Status Donut (matching reference: Inactive / Active)
+        const inactive = d.candidates_status.pending;
+        const active = d.candidates_status.processing + d.candidates_status.issued + d.candidates_status.deployed;
+        new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Inactive', 'Active'],
+                datasets: [{
+                    data: [inactive, active || 1],
+                    backgroundColor: ['#e2e8f0', '#2563eb'],
+                    borderWidth: 0,
+                    hoverOffset: 4,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                cutout: '72%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 10, padding: 12, font: { size: 11 } }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.88)',
+                        bodyFont: { size: 11 },
+                        padding: 8,
+                        cornerRadius: 7,
+                    }
+                }
+            }
+        });
+    } catch(e) { console.error('Dashboard stats error', e); }
+
+    // Load recent candidates (matching reference: Name, Arabic Name, Passport No, Destination, Phone)
+    try {
+        const r3 = await axios.get('/api/candidates/?limit=8');
+        const tbody2 = document.getElementById('recentCandidates');
+        if (r3.data.items && r3.data.items.length) {
+            tbody2.innerHTML = r3.data.items.slice(0, 8).map(c => {
+                return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+                    <td class="px-4 py-2.5 font-semibold text-slate-800">${c.full_name || '—'}</td>
+                    <td class="px-4 py-2.5 text-slate-500" dir="rtl">${c.name_arabic || '—'}</td>
+                    <td class="px-4 py-2.5 font-mono text-xs text-slate-600">${c.passport_no || '—'}</td>
+                    <td class="px-4 py-2.5"><span class="text-blue-600 font-medium text-xs uppercase">${c.destination || c.country || 'AL-RIYADH'}</span></td>
+                    <td class="px-4 py-2.5 text-slate-600">${c.phone || '—'}</td>
+                </tr>`;
+            }).join('');
+        } else {
+            tbody2.innerHTML = '<tr><td colspan="5" class="px-4 py-4 text-center text-slate-400">No candidates yet</td></tr>';
+        }
+    } catch(e) {}
+
+    // Load clients + embassies for dashboard modals
+    try {
+        const rc = await axios.get('/api/clients/?limit=2000');
+        const clients = rc.data.items || rc.data || [];
+        const sel1 = document.getElementById('dashClientSelect');
+        clients.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.company_name} (${c.country || 'N/A'})`;
+            sel1.appendChild(opt);
+        });
+    } catch(e) {}
+    try {
+        const re = await axios.get('/api/lookups/embassies?limit=500');
+        const sel2 = document.getElementById('dashEmbassySelect');
+        (re.data.items || []).forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.name;
+            opt.textContent = e.name;
+            sel2.appendChild(opt);
+        });
+    } catch(e) {}
+})();
+
+// Dashboard Quick-Add Demand
+async function openNewDemandFromDashboard() {
+    const m = document.getElementById('dashDemandModal');
+    const f = document.getElementById('dashDemandForm');
+    
+    // Fetch next file number
+    try {
+        const { data } = await axios.get('/api/demands/config/next-file-number');
+        if (data && data.next_seq) {
+            f.elements['file_number'].placeholder = `Auto (e.g. ${data.display})`;
+        }
+    } catch (e) {
+        // ignore
+    }
+    
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+}
+function closeDashDemandModal() {
+    const m = document.getElementById('dashDemandModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+document.getElementById('dashDemandForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {};
+    fd.forEach((v, k) => { if (v) payload[k] = v; });
+    if (!payload.client_id) { alert('Please select a client'); return; }
+    try {
+        const { data } = await axios.post('/api/demands/', payload);
+        closeDashDemandModal();
+        window.location.href = `/demands/${data.id}`;
+    } catch(err) {
+        alert(err.response?.data?.detail || 'Failed to create demand');
+    }
+});
+
+// Dashboard Quick-Add Client
+function openNewClientFromDashboard() {
+    const m = document.getElementById('dashClientModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+}
+function closeDashClientModal() {
+    const m = document.getElementById('dashClientModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+document.getElementById('dashClientForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {};
+    fd.forEach((v, k) => { if (v) payload[k] = v; });
+    if (!payload.company_name) { alert('Company name is required'); return; }
+    try {
+        const { data } = await axios.post('/api/clients/', payload);
+        closeDashClientModal();
+        window.location.href = `/clients/${data.id}`;
+    } catch(err) {
+        alert(err.response?.data?.detail || 'Failed to create client');
+    }
+});
+
+// Update greeting dynamically
+(function() {
+    const hour = new Date().getHours();
+    let greeting = 'Good Evening';
+    if (hour >= 5 && hour < 12) greeting = 'Good Morning';
+    else if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
+    const el = document.getElementById('timeGreeting');
+    if (el) el.textContent = greeting;
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Roles · {{ company_name }}{% endblock %}
+{% block page_title %}Roles &amp; Permissions{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-shield-halved text-blue-600"></i> Roles &amp; Permissions
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">
+            Manage who can do what in the portal. System roles can be re-tuned; custom roles can be created for fine-grained access.
+        </p>
+    </div>
+    <button onclick="openNew()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+        <i class="fa-solid fa-plus mr-1"></i> New Role
+    </button>
+</div>
+
+<div id="grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="text-slate-400 text-center py-12 col-span-full">Loading…</div>
+</div>
+
+<!-- Edit modal — wide enough to show the catalog comfortably -->
+<div id="modal" class="hidden fixed inset-0 bg-slate-900/60 z-40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl max-h-[92vh] flex flex-col">
+        <div class="border-b border-slate-100 px-5 py-3 flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-xl">
+            <div>
+                <h3 id="mTitle" class="font-semibold">Role</h3>
+                <p id="mSub" class="text-[11px] text-blue-100 mt-0.5">Pick the modules &amp; actions this role can perform.</p>
+            </div>
+            <button onclick="close_()" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <div class="p-5 space-y-4 overflow-y-auto flex-1">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">Role Name</label>
+                    <input id="mName" class="form-input" placeholder="e.g. Documentation Officer">
+                </div>
+                <div>
+                    <label class="form-label">Description</label>
+                    <input id="mDesc" class="form-input" placeholder="Short description">
+                </div>
+            </div>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center gap-2 text-xs">
+                <i class="fa-solid fa-bolt text-amber-500"></i>
+                <span class="text-slate-600">Quick reset to preset:</span>
+                <button type="button" onclick="applyPreset('admin')"   class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold">Admin</button>
+                <button type="button" onclick="applyPreset('manager')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold">Manager</button>
+                <button type="button" onclick="applyPreset('staff')"   class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold">Staff</button>
+                <span class="text-slate-300">·</span>
+                <button type="button" onclick="setAll(true)"  class="text-slate-600 hover:underline">Select all</button>
+                <button type="button" onclick="setAll(false)" class="text-slate-600 hover:underline">Clear all</button>
+            </div>
+
+            <div id="mAdminLock" class="hidden bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg p-3">
+                <i class="fa-solid fa-lock mr-1"></i>
+                The <b>Admin</b> system role must keep the wildcard <code>*</code> permission and cannot be scoped down. Create a custom role instead if you need limited admin access.
+            </div>
+
+            <div id="mPerms" class="space-y-3"></div>
+
+            <div id="mErr" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2"></div>
+        </div>
+        <div class="border-t border-slate-100 px-5 py-3 flex justify-end gap-2 bg-slate-50 rounded-b-xl">
+            <button onclick="close_()" class="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-white">Cancel</button>
+            <button onclick="save()" id="mBtn" class="px-5 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <i class="fa-solid fa-floppy-disk mr-1"></i> Save Role
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+// CATALOG is loaded from the server so the keys always match the
+// @require_permission decorators used on the API.
+let CATALOG = [];
+let PRESETS = {};
+let ALL_KEYS = [];
+let editingId = null;
+let editingIsSystem = false;
+let editingIsAdmin = false;
+let roles = [];
+
+async function loadCatalog() {
+    try {
+        const { data } = await axios.get('/api/users/roles/_meta/catalog');
+        CATALOG = data.catalog || [];
+        PRESETS = data.presets || {};
+        ALL_KEYS = data.all_keys || [];
+    } catch (e) {
+        CATALOG = []; PRESETS = {}; ALL_KEYS = [];
+    }
+}
+
+async function load() {
+    try {
+        const res = await axios.get('/api/users/roles');
+        roles = res.data;
+        const grid = document.getElementById('grid');
+        grid.innerHTML = roles.map(r => {
+            const total = ALL_KEYS.length || 1;
+            const isWild = (r.permissions || []).includes('*');
+            const have = isWild ? total : (r.permissions || []).length;
+            const pct = Math.min(100, Math.round(have / total * 100));
+            const sysBadge = r.is_system
+                ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">SYSTEM</span>'
+                : '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700">CUSTOM</span>';
+            const wildBadge = isWild
+                ? '<span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700"><i class="fa-solid fa-star mr-1"></i>FULL ACCESS</span>'
+                : '';
+            const previewPerms = isWild
+                ? '<span class="text-rose-600 font-semibold text-xs">★ all permissions</span>'
+                : (r.permissions || []).slice(0, 6).map(p =>
+                    `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-mono">${escapeHtml(p)}</span>`
+                  ).join(' ');
+            const extra = (!isWild && r.permissions.length > 6)
+                ? `<span class="text-xs text-slate-400">+${r.permissions.length - 6} more</span>` : '';
+            return `
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition p-4">
+                    <div class="flex items-start justify-between mb-3">
+                        <div>
+                            <div class="font-bold text-slate-800 text-base">${escapeHtml(r.name)}</div>
+                            <div class="text-xs text-slate-500 mt-0.5">${escapeHtml(r.description || '—')}</div>
+                        </div>
+                        <div class="text-right">${sysBadge}${wildBadge}</div>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="h-full ${isWild?'bg-rose-500':'bg-blue-500'}" style="width:${pct}%"></div>
+                        </div>
+                        <div class="text-xs font-semibold text-slate-600">${isWild?'∞':have}/${total}</div>
+                    </div>
+                    <div class="flex flex-wrap gap-1 min-h-[28px]">${previewPerms} ${extra}</div>
+                    <div class="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                        <button onclick='edit(${JSON.stringify(r).replace(/'/g, "&#39;")})' class="text-xs text-blue-600 hover:text-blue-700 font-semibold">
+                            <i class="fa-solid fa-pen"></i> Edit Permissions
+                        </button>
+                        ${!r.is_system ? `<button onclick="del(${r.id})" class="text-xs text-rose-500 hover:text-rose-600 font-semibold ml-auto">
+                            <i class="fa-regular fa-trash-can"></i> Delete
+                        </button>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        document.getElementById('grid').innerHTML = `<div class="text-rose-500 col-span-full">${escapeHtml(e.response?.data?.detail || e.message)}</div>`;
+    }
+}
+
+function escapeHtml(s) {
+    return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderPermissionMatrix(selected) {
+    const sel = new Set(selected || []);
+    const wrap = document.getElementById('mPerms');
+    if (!CATALOG.length) {
+        wrap.innerHTML = '<div class="text-slate-400 text-sm">Permission catalog not loaded.</div>';
+        return;
+    }
+    wrap.innerHTML = CATALOG.map(group => `
+        <div class="border border-slate-200 rounded-lg overflow-hidden">
+            <div class="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h4 class="font-semibold text-slate-700 text-sm">${escapeHtml(group.module)}</h4>
+                <div class="flex items-center gap-2 text-[11px]">
+                    <button type="button" data-group-toggle="${escapeHtml(group.module)}" data-on="1" class="text-emerald-600 hover:underline">all</button>
+                    <button type="button" data-group-toggle="${escapeHtml(group.module)}" data-on="0" class="text-slate-500 hover:underline">none</button>
+                </div>
+            </div>
+            <div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-2" data-group="${escapeHtml(group.module)}">
+                ${group.items.map(item => `
+                    <label class="flex items-start gap-2 cursor-pointer hover:bg-slate-50 rounded px-1 py-0.5">
+                        <input type="checkbox" value="${escapeHtml(item.key)}" ${sel.has(item.key)?'checked':''} class="mt-1 accent-blue-600" data-perm>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-[12.5px] text-slate-800">${escapeHtml(item.label)}</div>
+                            <div class="text-[10px] font-mono text-slate-400">${escapeHtml(item.key)}</div>
+                        </div>
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+    // Wire up group toggle buttons (data-attribute-based, avoids quote-escaping pitfalls)
+    wrap.querySelectorAll('[data-group-toggle]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            toggleGroup(btn.getAttribute('data-group-toggle'), btn.getAttribute('data-on') === '1');
+        });
+    });
+}
+
+function toggleGroup(moduleName, on) {
+    document.querySelectorAll(`[data-group="${CSS.escape(moduleName)}"] input[data-perm]`)
+        .forEach(cb => { cb.checked = !!on; });
+}
+
+function setAll(on) {
+    document.querySelectorAll('#mPerms input[data-perm]').forEach(cb => { cb.checked = !!on; });
+}
+
+function applyPreset(name) {
+    const perms = PRESETS[name] || [];
+    if (perms.includes('*')) {
+        setAll(true);
+        return;
+    }
+    const sel = new Set(perms);
+    document.querySelectorAll('#mPerms input[data-perm]').forEach(cb => {
+        cb.checked = sel.has(cb.value);
+    });
+}
+
+function openNew() {
+    edit({ name:'', description:'', permissions:[], is_system: false });
+}
+
+function edit(role) {
+    editingId = role.id || null;
+    editingIsSystem = !!role.is_system;
+    editingIsAdmin = (role.name || '').toLowerCase() === 'admin' && editingIsSystem;
+    document.getElementById('mTitle').textContent = editingId ? `Edit Role — ${role.name}` : 'New Role';
+    document.getElementById('mSub').textContent = editingIsSystem
+        ? 'System role · name is locked but you can re-tune the permissions.'
+        : 'Pick the modules & actions this role can perform.';
+    const nameEl = document.getElementById('mName');
+    nameEl.value = role.name || '';
+    nameEl.disabled = editingIsSystem;
+    document.getElementById('mDesc').value = role.description || '';
+    document.getElementById('mAdminLock').classList.toggle('hidden', !editingIsAdmin);
+
+    // Admin → render but everything checked + disabled
+    const perms = (role.permissions || []).includes('*') ? ALL_KEYS : (role.permissions || []);
+    renderPermissionMatrix(perms);
+    if (editingIsAdmin) {
+        document.querySelectorAll('#mPerms input[data-perm]').forEach(cb => {
+            cb.checked = true; cb.disabled = true;
+        });
+    }
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+function close_() {
+    document.getElementById('modal').classList.add('hidden');
+    document.getElementById('mErr').classList.add('hidden');
+    editingId = null; editingIsSystem = false; editingIsAdmin = false;
+}
+
+async function save() {
+    const name = document.getElementById('mName').value.trim();
+    if (!name) { showErr('Name is required'); return; }
+    const perms = editingIsAdmin
+        ? ['*']
+        : [...document.querySelectorAll('#mPerms input[data-perm]:checked')].map(c => c.value);
+    const payload = { name, description: document.getElementById('mDesc').value, permissions: perms };
+    const btn = document.getElementById('mBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving…';
+    try {
+        if (editingId) await axios.put(`/api/users/roles/${editingId}`, payload);
+        else           await axios.post('/api/users/roles', payload);
+        close_(); load();
+    } catch (e) {
+        showErr(e.response?.data?.detail || 'Failed to save');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Save Role';
+    }
+}
+
+function showErr(msg) {
+    const el = document.getElementById('mErr');
+    el.textContent = msg; el.classList.remove('hidden');
+}
+
+async function del(id) {
+    if (!confirm('Delete this role? Users with this role will need to be re-assigned.')) return;
+    try { await axios.delete(`/api/users/roles/${id}`); load(); }
+    catch (e) { alert(e.response?.data?.detail || 'Failed to delete'); }
+}
+
+(async () => { await loadCatalog(); await load(); })();
+</script>
+{% endblock %}

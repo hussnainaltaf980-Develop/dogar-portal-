@@ -1,0 +1,2282 @@
+{% extends "base.html" %}
+{% block title %}Candidates · {{ company_name }}{% endblock %}
+{% block content %}
+<div id="mainLayoutWrapper" class="{% if flyout %}hidden{% endif %}">
+<div class="flex items-center justify-between mb-5">
+    <div>
+        <h1 class="text-[22px] font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-regular fa-id-badge text-blue-600"></i> Candidates
+        </h1>
+        <p class="text-sm text-slate-500 mt-0.5">Workers being recruited (newest first).</p>
+    </div>
+    <div class="flex items-center gap-2">
+        <button onclick="loadDrafts()" id="draftsBtn" class="hidden bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold px-3.5 py-2 rounded-lg flex items-center gap-2 relative" title="Resume incomplete candidate wizards">
+            <i class="fa-regular fa-clock"></i> Resume Drafts <span id="draftCount" class="hidden absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
+        </button>
+        <a href="/demands" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+            <i class="fa-solid fa-plus"></i> New Candidate
+        </a>
+    </div>
+</div>
+
+<!-- Resume drafts shelf (initially hidden) -->
+<div id="draftShelf" class="hidden mb-4 card">
+    <div class="card-header bg-amber-50/40">
+        <h3 class="font-semibold text-slate-800 text-sm"><i class="fa-regular fa-clock text-amber-500 mr-1.5"></i> Unfinished Drafts</h3>
+        <button onclick="document.getElementById('draftShelf').classList.add('hidden')" class="text-slate-400 hover:text-slate-700 text-xs"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="draftList" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+</div>
+
+<div class="card">
+    <!-- Filter strip — mirrors reference DEMO OEP candidate list:
+         search · client · demand file · category · status                    -->
+    <div class="card-header flex-wrap gap-y-2">
+        <div class="flex items-center gap-2 flex-wrap">
+            <div class="relative">
+                <i class="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                <input id="searchInput" type="text" placeholder="Search name, CNIC, passport..." class="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-64 focus:outline-none focus:border-blue-500">
+            </div>
+            <select id="clientFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-44">
+                <option value="">All Clients</option>
+            </select>
+            <select id="demandFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-44">
+                <option value="">All Demand Files</option>
+            </select>
+            <select id="categoryFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-44">
+                <option value="">All Categories</option>
+            </select>
+            <select id="statusFilter" class="text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 w-36">
+                <option value="">All Stages</option>
+            </select>
+            <button id="clearFiltersBtn" onclick="clearFilters()" class="text-xs text-slate-500 hover:text-rose-600 px-2 py-1 hidden"><i class="fa-solid fa-xmark"></i> Clear</button>
+        </div>
+        <span id="totalCount" class="text-xs text-slate-500"></span>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Demand File & Client</th>
+                    <th>Embassy</th>
+                    <th>Passport</th>
+                    <th>CNIC</th>
+                    <th>Profession</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th class="w-20 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+    <!-- Pagination footer — mirrors reference "N total · Page X of Y · 30 per page · Prev · Next" -->
+    <div class="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500" id="paginationBar">
+        <div id="pgInfo">—</div>
+        <div class="flex items-center gap-2">
+            <select id="pgSize" class="border border-slate-200 rounded px-2 py-1 text-xs">
+                <option value="10">10 per page</option>
+                <option value="20" selected>20 per page</option>
+                <option value="50">50 per page</option>
+                <option value="100">100 per page</option>
+            </select>
+            <button id="pgPrev" class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40" onclick="changePage(-1)">Prev</button>
+            <button id="pgNext" class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40" onclick="changePage(1)">Next</button>
+        </div>
+    </div>
+</div>
+</div> <!-- end mainLayoutWrapper -->
+
+<!-- =================================================================== -->
+<!-- RIGHT-SIDE SLIDE-IN DRAWER + 7-STEP WIZARD WITH STATE PERSISTENCE   -->
+<!-- =================================================================== -->
+<div id="drawerBackdrop" class="fixed inset-0 bg-black/40 z-40 hidden {% if flyout %}!hidden{% endif %}" onclick="closeDrawer()"></div>
+{# When the candidates page is embedded as a flyout iframe AND we are in
+   wizard mode (Assign Candidate / Edit) we hide the right-side detail
+   drawer entirely so the user only sees the centered 7-step data-entry
+   modal \u2014 no empty "New Candidate" tabs behind it. #}
+<aside id="drawer" class="drawer-panel fixed top-0 right-0 h-full w-full md:w-[760px] bg-white shadow-2xl z-50 flex flex-col {% if flyout and wizard_mode %}!hidden{% elif flyout %}!w-full !max-w-none transition-none !shadow-none !border-none translate-x-0 relative{% else %}transform translate-x-full transition-transform duration-300 fixed{% endif %}">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white shadow-sm">
+        <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <i class="fa-solid fa-id-card-clip"></i>
+            </div>
+            <div class="min-w-0">
+                <h3 id="drawerTitle" class="font-bold text-slate-800 text-lg truncate">New Candidate</h3>
+                <div class="flex items-center gap-2 flex-wrap mt-0.5">
+                    <p id="drawerSubtitle" class="text-xs text-slate-500"></p>
+                    <span id="drawerEmbassyBadge" class="hidden px-2 py-0.5 text-[10px] rounded-full font-semibold"></span>
+                    <span id="drawerClientBadge" class="hidden px-2 py-0.5 text-[10px] rounded-full font-semibold bg-slate-100 text-slate-700"></span>
+                    <span id="drawerDemandBadge" class="hidden px-2 py-0.5 text-[10px] rounded-full font-semibold bg-blue-50 text-blue-700 font-mono"></span>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <span id="autosaveBadge" class="hidden text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-check"></i> Saved</span>
+            <button onclick="closeDrawer()" class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition" title="Close (Esc)"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+    </div>
+
+    <!-- Tab strip -->
+    <div class="px-6 pt-3 bg-white border-b border-slate-100">
+        <div class="tab-bar -mb-px">
+            <button class="tab-btn active" data-dtab="profile" id="tabBtnProfile" onclick="switchDrawerTab('profile')"><i class="fa-regular fa-user"></i> Details</button>
+            <button class="tab-btn" data-dtab="documents" onclick="switchDrawerTab('documents')"><i class="fa-regular fa-file-lines"></i> Documents</button>
+            <button class="tab-btn" data-dtab="checklist" onclick="switchDrawerTab('checklist')"><i class="fa-solid fa-list-check"></i> Check List</button>
+            <button class="tab-btn" data-dtab="status" onclick="switchDrawerTab('status')"><i class="fa-solid fa-flag"></i> Status</button>
+            <button class="tab-btn" data-dtab="activity" onclick="switchDrawerTab('activity')"><i class="fa-regular fa-clock"></i> Activity</button>
+        </div>
+    </div>
+
+    <!-- Tab content -->
+    <div class="flex-1 overflow-y-auto bg-slate-50 relative">
+        
+        <!-- PROFILE TAB (Read Only View) — Enterprise redesign v6
+             • Gradient hero header with photo + name + ID + E-Number badge
+             • Horizontal workflow tracker (6 stages)
+             • Structured info cards (Personal / Identity / Contact / NOK / Demand / Visa)
+        -->
+        <div id="dtab-profile" class="dtab-pane hidden">
+            <!-- HERO HEADER: refined slate/light-grey professional theme (replaces purple gradient) -->
+            <div class="relative bg-gradient-to-br from-slate-50 to-slate-100 border-b border-slate-200 px-6 py-6">
+                <!-- Subtle decorative accent ribbon (corporate blue) -->
+                <div class="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500"></div>
+
+                <div class="absolute top-4 right-4 flex items-center gap-2">
+                    <button onclick="printCandidateProfile()" class="text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-sm" title="Print profile">
+                        <i class="fa-solid fa-print"></i> Print
+                    </button>
+                    <button onclick="editFromDrawer()" class="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-sm" title="Edit candidate">
+                        <i class="fa-solid fa-pen-to-square"></i> Edit
+                    </button>
+                </div>
+                <div class="flex items-start gap-5">
+                    <!-- Photo / initials: light card with subtle blue accent -->
+                    <div id="pViewPhoto" class="w-24 h-24 rounded-2xl bg-white flex items-center justify-center text-blue-700 text-3xl font-bold shadow-md overflow-hidden shrink-0 border border-slate-200 ring-4 ring-white"></div>
+                    <div class="flex-1 min-w-0 pt-1">
+                        <h2 id="pViewName" class="text-2xl font-bold truncate text-slate-800"></h2>
+                        <div id="pViewFather" class="text-sm text-slate-500 mt-0.5"></div>
+                        <!-- ID + E-Number badges: light professional tone -->
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                            <span id="pViewIdBadge" class="px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-md font-mono font-semibold flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-hashtag text-slate-400"></i><span id="pViewIdText">—</span></span>
+                            <span id="pViewENumBadge" class="hidden px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-md font-mono font-semibold flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-barcode"></i> E# <span id="pViewENumText"></span></span>
+                            <span id="pViewStageBadge" class="hidden px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md font-semibold flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-flag-checkered"></i> <span id="pViewStageText"></span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Workflow progress tracker (6 stages) — clean white card -->
+                <div class="mt-6 bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-500 mb-2 font-semibold">Workflow Progress</div>
+                    <div id="pWorkflowTracker" class="flex items-center justify-between gap-1">
+                        <!-- Filled dynamically by renderWorkflowTracker() -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- INFO CARDS (slate-50 backdrop, white cards) -->
+            <div class="p-6 space-y-4">
+
+                <!-- Personal Information -->
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center"><i class="fa-solid fa-user"></i></div>
+                        <h4 class="font-semibold text-slate-800 text-sm">Personal Information</h4>
+                    </div>
+                    <div class="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Full Name</div><div id="pInfoName" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Name (Arabic)</div><div id="pInfoNameAr" class="font-medium text-slate-800 mt-0.5" dir="rtl">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Father's Name</div><div id="pInfoFather" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Mother's Name</div><div id="pInfoMother" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Date of Birth</div><div id="pInfoDOB" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Place of Birth</div><div id="pInfoPOB" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Gender</div><div id="pInfoGender" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Marital Status</div><div id="pInfoMarital" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Nationality</div><div id="pInfoNationality" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Religion</div><div id="pInfoReligion" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Qualification</div><div id="pInfoQual" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Age</div><div id="pInfoAge" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                    </div>
+                </div>
+
+                <!-- Identity & Passport -->
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-passport"></i></div>
+                        <h4 class="font-semibold text-slate-800 text-sm">Identity &amp; Passport</h4>
+                    </div>
+                    <div class="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">CNIC</div><div id="pIdCNIC" class="font-mono font-semibold text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Passport No.</div><div id="pIdPassport" class="font-mono font-semibold text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Passport Issue Date</div><div id="pIdPassIssue" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Passport Expiry</div><div id="pIdPassExpiry" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Issue Place</div><div id="pIdIssuePlace" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Issuing Authority</div><div id="pIdAuthority" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                    </div>
+                </div>
+
+                <!-- Contact & Address -->
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-location-dot"></i></div>
+                        <h4 class="font-semibold text-slate-800 text-sm">Contact &amp; Address</h4>
+                    </div>
+                    <div class="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Phone</div><div id="pContactPhone" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Email</div><div id="pContactEmail" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Tehsil</div><div id="pContactTehsil" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">District</div><div id="pContactDistrict" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Province</div><div id="pContactProvince" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div class="col-span-2"><div class="text-[11px] uppercase tracking-wide text-slate-400">Full Address</div><div id="pContactAddress" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                    </div>
+                </div>
+
+                <!-- Next of Kin -->
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center"><i class="fa-solid fa-people-roof"></i></div>
+                        <h4 class="font-semibold text-slate-800 text-sm">Next of Kin</h4>
+                    </div>
+                    <div class="px-5 py-4 grid grid-cols-3 gap-x-6 gap-y-3 text-sm">
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Name</div><div id="pNOKName" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">CNIC</div><div id="pNOKCnic" class="font-mono text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Relationship</div><div id="pNOKRel" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                    </div>
+                </div>
+
+                <!-- Linked Demand File -->
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-folder-open"></i></div>
+                        <h4 class="font-semibold text-slate-800 text-sm">Linked Demand File</h4>
+                        <a id="pDemandFileLink" href="#" class="ml-auto hidden text-xs font-semibold text-blue-600 hover:underline">Open file <i class="fa-solid fa-arrow-up-right-from-square text-[10px] ml-0.5"></i></a>
+                    </div>
+                    <div class="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">File Number</div><div id="pDemandFileNo" class="font-mono font-semibold text-blue-700 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Client / Customer</div><div id="pDemandClient" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Sponsor</div><div id="pDemandSponsor" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Visa Number</div><div id="pDemandVisaNo" class="font-mono text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Country</div><div id="pDemandCountry" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Embassy</div><div id="pDemandEmbassy" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                    </div>
+                </div>
+
+                <!-- Visa Category / Trade -->
+                <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center border border-slate-200"><i class="fa-solid fa-briefcase"></i></div>
+                        <h4 class="font-semibold text-slate-800 text-sm">Visa Category</h4>
+                    </div>
+                    <div class="px-5 py-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Trade / Profession</div><div id="pVisaTrade" class="font-semibold text-slate-800 mt-0.5">—</div></div>
+                        <div><div class="text-[11px] uppercase tracking-wide text-slate-400">Salary</div><div id="pVisaSalary" class="font-medium text-slate-800 mt-0.5">—</div></div>
+                        <div class="col-span-2"><div class="text-[11px] uppercase tracking-wide text-slate-400">Notes</div><div id="pVisaNotes" class="text-slate-700 mt-0.5">—</div></div>
+                    </div>
+                </div>
+
+                <!-- Hidden legacy IDs kept for backwards-compatible JS references -->
+                <span id="pViewPassport" class="hidden"></span>
+                <span id="pViewCNIC" class="hidden"></span>
+                <span id="pViewPhone" class="hidden"></span>
+                <span id="pViewTrade" class="hidden"></span>
+                <span id="pViewDemand" class="hidden"></span>
+                <span id="pViewClient" class="hidden"></span>
+                <span id="pViewEmbassy" class="hidden"></span>
+                <span id="pViewSalary" class="hidden"></span>
+                <span id="pViewQual" class="hidden"></span>
+                <span id="pViewMarital" class="hidden"></span>
+                <span id="pViewRel" class="hidden"></span>
+                <span id="pViewAddr" class="hidden"></span>
+                <span id="pViewNOK" class="hidden"></span>
+            </div>
+        </div>
+
+        <!-- (Data entry has moved to the centered #candidateModal below — this drawer is VIEW-ONLY) -->
+
+
+        <!-- DOCUMENTS TAB - PROTECTOR + VISA PROCESS data-overlay (embassy-filtered) -->
+        <div id="dtab-documents" class="dtab-pane hidden p-6 space-y-5">
+            <div class="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-800">
+                <i class="fa-solid fa-circle-info mr-1"></i>
+                Documents here use the <b>real-image data-overlay engine</b> (not generation). Each [Print] button merges this candidate's data onto the actual document image. The Visa Application Form is auto-filtered by the assigned demand's embassy.
+            </div>
+
+            <!-- PROTECTOR DOCUMENTS GROUP -->
+            <div class="bg-white border border-slate-200 rounded-lg">
+                <div class="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-t-lg flex items-center justify-between">
+                    <h4 class="font-semibold text-sm"><i class="fa-solid fa-stamp mr-2"></i>PROTECTOR DOCUMENTS</h4>
+                    <span id="protectorCount" class="text-[11px] bg-white/20 px-2 py-0.5 rounded-full">0</span>
+                </div>
+                <div id="protectorList" class="divide-y divide-slate-100">
+                    <div class="p-6 text-center text-slate-400 text-sm"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading…</div>
+                </div>
+            </div>
+
+            <!-- VISA PROCESS GROUP -->
+            <div class="bg-white border border-slate-200 rounded-lg">
+                <div class="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-t-lg flex items-center justify-between">
+                    <h4 class="font-semibold text-sm"><i class="fa-solid fa-passport mr-2"></i>VISA PROCESS</h4>
+                    <div class="flex items-center gap-2">
+                        <span id="visaEmbassyHint" class="text-[11px] bg-white/20 px-2 py-0.5 rounded-full"></span>
+                        <span id="visaCount" class="text-[11px] bg-white/20 px-2 py-0.5 rounded-full">0</span>
+                    </div>
+                </div>
+                <div id="visaList" class="divide-y divide-slate-100">
+                    <div class="p-6 text-center text-slate-400 text-sm"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading…</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHECKLIST TAB -->
+        <div id="dtab-checklist" class="dtab-pane hidden p-6">
+            <div class="bg-white border border-slate-200 rounded-lg p-5">
+                <h4 class="font-semibold text-slate-800 mb-3">Document Check List</h4>
+                <div class="space-y-2 text-sm" id="checklistBody">
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Passport</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> CNIC Front / Back</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Photographs (white background)</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Educational Certificates</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Experience Certificates</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Medical (GAMCA)</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Police Clearance</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Protector Stamp</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Visa Stamping</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" class="rounded"> Air Ticket</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- STATUS TAB -->
+        <div id="dtab-status" class="dtab-pane hidden p-6 space-y-4">
+            <!-- Workflow stage changer -->
+            <div class="bg-white border border-slate-200 rounded-lg p-5">
+                <h4 class="font-semibold text-slate-800 mb-3"><i class="fa-solid fa-flag-checkered text-blue-600 mr-1"></i> Workflow Stage</h4>
+                <div class="flex items-end gap-3 flex-wrap">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="text-xs text-slate-500 mb-1 block">Current Stage</label>
+                        <select id="statusStageSelect" class="form-select w-full"></select>
+                    </div>
+                    <button id="statusStageSaveBtn" onclick="saveStageChange()" class="btn-primary px-5 py-2 text-sm whitespace-nowrap">
+                        <i class="fa-solid fa-check mr-1"></i> Update Stage
+                    </button>
+                </div>
+                <div id="statusStageMsg" class="text-xs mt-2 hidden"></div>
+            </div>
+            <!-- Processing details -->
+            <div class="bg-white border border-slate-200 rounded-lg p-5">
+                <h4 class="font-semibold text-slate-800 mb-4">Processing Details</h4>
+                <div class="grid grid-cols-2 gap-3 text-sm" id="statusGrid"></div>
+                <div class="mt-4 p-3 bg-slate-50 rounded-md">
+                    <div class="text-xs font-semibold text-slate-600 mb-2">Assignments</div>
+                    <div id="assignmentsList" class="space-y-1.5 text-sm"></div>
+                </div>
+            </div>
+            <!-- Status history timeline -->
+            <div class="bg-white border border-slate-200 rounded-lg p-5">
+                <h4 class="font-semibold text-slate-800 mb-3"><i class="fa-regular fa-clock text-slate-500 mr-1"></i> Status History</h4>
+                <div id="statusHistory" class="space-y-3 text-sm">
+                    <div class="text-slate-400 text-xs italic">No stage changes recorded yet.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ACTIVITY (audit log) TAB -->
+        <div id="dtab-activity" class="dtab-pane hidden p-6">
+            <div class="bg-white border border-slate-200 rounded-lg p-5">
+                <h4 class="font-semibold text-slate-800 mb-3">Activity / Audit Trail</h4>
+                <div id="auditTimeline" class="space-y-3 text-sm">
+                    <div class="text-slate-400 text-xs italic">No activity yet. Save the candidate to begin tracking.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer (VIEW-ONLY) -->
+    <div class="px-6 py-3 border-t border-slate-200 bg-white flex items-center justify-between">
+        <div class="text-xs text-slate-500">Read-only view · use <b>Edit</b> to change data</div>
+        <div class="flex gap-2">
+            <button id="drawerPrintBtn" onclick="printCandidateProfile()" class="px-4 py-2 text-sm border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md inline-flex items-center gap-1.5">
+                <i class="fa-solid fa-print"></i> <span>Print Profile</span>
+            </button>
+            <button id="drawerEditBtn" onclick="editFromDrawer()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-md">
+                <i class="fa-solid fa-pen-to-square"></i> Edit Candidate
+            </button>
+        </div>
+    </div>
+</aside>
+
+<!-- Hidden print iframe — the Print Profile button loads the server-rendered
+     CV-style profile into this iframe and fires window.print() on it.
+     This avoids opening a new tab/popup window for the print preview. -->
+<iframe id="candidatePrintFrame" name="candidatePrintFrame" aria-hidden="true" tabindex="-1"
+        style="position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden"></iframe>
+
+<!-- =================================================================== -->
+<!-- CENTERED CANDIDATE DATA-ENTRY MODAL (Add + Edit) — 7-step wizard    -->
+<!-- Mirrors the DEMO OEP master form: centered, step tabs, 3-col grid   -->
+<!-- =================================================================== -->
+<div id="candidateModal" class="modal-overlay hidden">
+  <div class="modal-box modal-box-wizard">
+    <!-- Modal header -->
+    <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+      <div>
+        <h3 id="cmTitle" class="font-bold text-slate-800 text-lg">New Candidate</h3>
+        <p id="cmSubtitle" class="text-xs text-slate-500 mt-0.5"></p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="cmAutosaveBadge" class="hidden text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full"><i class="fa-solid fa-check"></i> Saved</span>
+        <button onclick="closeCandidateModal()" class="text-slate-400 hover:text-slate-700 text-xl"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+
+    <!-- Step tabs (horizontal stepper) -->
+    <div class="px-6 pt-4 pb-2 bg-white border-b border-slate-100">
+      <div class="stepper">
+        <div class="step active" data-step="1"><span class="step-num">1</span><span class="step-label">Personal Info</span></div>
+        <div class="step" data-step="2"><span class="step-num">2</span><span class="step-label">Identification</span></div>
+        <div class="step" data-step="3"><span class="step-num">3</span><span class="step-label">Employment</span></div>
+        <div class="step" data-step="4"><span class="step-num">4</span><span class="step-label">Next of Kin</span></div>
+        <div class="step" data-step="5"><span class="step-num">5</span><span class="step-label">Medical &amp; Protector</span></div>
+        <div class="step" data-step="6"><span class="step-num">6</span><span class="step-label">Visa &amp; Travel</span></div>
+        <div class="step" data-step="7"><span class="step-num">7</span><span class="step-label">Charge Summary</span></div>
+      </div>
+    </div>
+
+    <!-- Scrollable form body -->
+    <div class="flex-1 overflow-y-auto px-6 py-5 text-sm" style="max-height:60vh">
+      <form id="wizardForm">
+        <input type="hidden" name="id">
+
+        <!-- STEP 1: Personal Info -->
+        <div class="wizard-step" data-step="1">
+          <!-- ====================================================================
+               v8 PRIMARY INPUT: AI-Powered Passport OCR (real-time auto-fill)
+               Drop a passport photo here → extracts ALL fields (name, father,
+               PP#, DOB, expiry, place of issue, CNIC, nationality, gender) AND
+               auto-translates English name → Arabic for Saudi visa forms.
+               ==================================================================== -->
+          <div id="primaryOcrCard" class="mb-4 p-4 bg-gradient-to-br from-indigo-50 via-white to-emerald-50 border-2 border-indigo-200 rounded-xl shadow-sm">
+            <div class="flex items-start gap-4">
+              <div class="w-14 h-14 rounded-xl bg-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+                <i class="fa-solid fa-id-card text-2xl"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                  <h4 class="font-bold text-slate-800 text-base">Scan Passport — Auto-fill the entire form</h4>
+                  <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-600 text-white font-semibold">AI</span>
+                  <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-600 text-white font-semibold">English→Arabic</span>
+                </div>
+                <p class="text-xs text-slate-600 mb-3 leading-relaxed">
+                  Drop or upload a clear photo of the passport bio-data page. The AI extracts
+                  <b>name, father, passport #, DOB, expiry, place of issue, CNIC, nationality, gender</b>
+                  and auto-translates the name to Saudi Arabic in real time.
+                </p>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <label class="cursor-pointer inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow">
+                    <i class="fa-solid fa-camera"></i> <span>Scan Passport</span>
+                    <input type="file" id="primaryOcrInput" accept="image/*" class="hidden" onchange="scanPassport(this, {fromStep1:true})">
+                  </label>
+                  <button type="button" onclick="document.getElementById('primaryOcrInput').click()" class="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-indigo-700 text-sm font-semibold px-3 py-2 rounded-lg border border-indigo-300">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload file
+                  </button>
+                  <button type="button" id="translateNameBtn" onclick="translateNamesToArabic()" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-3 py-2 rounded-lg shadow">
+                    <i class="fa-solid fa-language"></i> Translate to Arabic
+                  </button>
+                  <span id="ocrInlineStatus" class="text-xs text-slate-500"></span>
+                </div>
+              </div>
+            </div>
+            <div id="ocrPreviewStrip" class="hidden mt-3 pt-3 border-t border-indigo-100">
+              <div class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Extracted fields</div>
+              <div id="ocrPreviewChips" class="flex flex-wrap gap-1.5"></div>
+            </div>
+          </div>
+
+          <!-- Photo upload (secondary, below OCR) -->
+          <div class="flex items-center gap-4 mb-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <div id="wizPhotoPreview" class="w-20 h-20 rounded-lg bg-slate-200 flex items-center justify-center text-slate-400 text-2xl overflow-hidden flex-shrink-0">
+              <i class="fa-regular fa-image"></i>
+            </div>
+            <div class="flex-1">
+              <div class="text-slate-700 font-medium text-sm mb-1">Photo Upload <span class="text-slate-400 font-normal">(candidate face photo, optional)</span></div>
+              <label class="cursor-pointer inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md">
+                <i class="fa-solid fa-upload"></i> <span id="wizPhotoBtnLabel">Choose file</span>
+                <input type="file" id="wizPhotoInput" accept="image/*" class="hidden" onchange="uploadWizardPhoto(this)">
+              </label>
+              <span id="wizPhotoStatus" class="ml-2 text-xs text-slate-500"></span>
+              <input type="hidden" name="photo">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label><span class="text-slate-600">Full Name *</span><input name="full_name" required class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Name (Arabic)</span><input name="name_arabic" dir="rtl" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Mother's Name</span><input name="mother_name" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Father's Name *</span><input name="father_name" required class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Father (Arabic)</span><input name="father_name_arabic" dir="rtl" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Gender</span>
+              <select name="gender" class="mt-1 w-full border rounded-md px-3 py-2"><option>Male</option><option>Female</option></select>
+            </label>
+            <label><span class="text-slate-600">Marital Status</span>
+              <select name="marital_status" class="mt-1 w-full border rounded-md px-3 py-2"><option>Single</option><option>Married</option><option>Divorced</option><option>Widowed</option></select>
+            </label>
+            <label><span class="text-slate-600">Religion</span><input name="religion" value="Islam" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Date of Birth</span><input name="date_of_birth" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Place of Birth</span><input name="place_of_birth" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Place of Birth (Arabic)</span><input name="place_of_birth_arabic" dir="rtl" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Nationality</span><input name="nationality" value="PAKISTANI" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label class="md:col-span-3"><span class="text-slate-600">Address</span><textarea name="address" rows="2" class="mt-1 w-full border rounded-md px-3 py-2"></textarea></label>
+            <label><span class="text-slate-600">Phone</span><input name="phone" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Email</span><input name="email" type="email" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Tehsil</span><input name="tehsil" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">District</span><input name="district" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Province</span><input name="province" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+          </div>
+        </div>
+
+        <!-- STEP 2: Identification -->
+        <div class="wizard-step hidden" data-step="2">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="font-semibold text-slate-700"><i class="fa-regular fa-address-card text-blue-500 mr-1"></i> Identification</h4>
+            <label class="cursor-pointer inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-md">
+              <i class="fa-solid fa-camera"></i> Scan Passport
+              <input type="file" id="passportScanInput" accept="image/*" class="hidden" onchange="scanPassport(this)">
+            </label>
+          </div>
+          <div id="ocrStatus" class="hidden mb-3 text-xs rounded-md p-2.5"></div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label><span class="text-slate-600">Passport Number</span><input name="passport_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">CNIC</span><input name="cnic" placeholder="XXXXX-XXXXXXX-X" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">NADRA Token No.</span><input name="nadra_token_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Passport Issue Date</span><input name="passport_issue_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Passport Expiry Date</span><input name="passport_expiry_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Issue Place</span><input name="passport_issue_place" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Issuing Authority</span><input name="issuing_authority" value="PAKISTAN" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Authority (Arabic)</span><input name="issuing_authority_arabic" dir="rtl" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+          </div>
+        </div>
+
+        <!-- STEP 3: Employment -->
+        <div class="wizard-step hidden" data-step="3">
+          <h4 class="font-semibold text-slate-700 mb-3"><i class="fa-solid fa-briefcase text-blue-500 mr-1"></i> Employment</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label><span class="text-slate-600">Permission No.</span><input name="permission_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Permission Date</span><input name="permission_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Qualification</span><input name="qualification" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Age (Employee)</span><input name="age_employee" type="number" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Profession</span><input name="profession" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Salary (SAR)</span><input name="salary" type="number" step="0.01" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+          </div>
+        </div>
+
+        <!-- STEP 4: Next of Kin -->
+        <div class="wizard-step hidden" data-step="4">
+          <h4 class="font-semibold text-slate-700 mb-3"><i class="fa-solid fa-people-roof text-blue-500 mr-1"></i> Next of Kin</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label class="md:col-span-2"><span class="text-slate-600">Next of Kin Name</span><input name="next_of_kin_name" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Next of Kin NIC</span><input name="next_of_kin_nic" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Relation</span>
+              <select name="next_of_kin_relation" class="mt-1 w-full border rounded-md px-3 py-2">
+                <option value="">-- Select --</option>
+                <option>Father</option><option>Mother</option><option>Brother</option><option>Sister</option><option>Spouse</option><option>Son</option><option>Daughter</option><option>Uncle</option><option>Other</option>
+              </select>
+            </label>
+            <label class="md:col-span-3"><span class="text-slate-600">Notes</span><textarea name="notes" rows="3" class="mt-1 w-full border rounded-md px-3 py-2"></textarea></label>
+          </div>
+        </div>
+
+        <!-- STEP 5: Medical & Protector -->
+        <div class="wizard-step hidden" data-step="5">
+          <h4 class="font-semibold text-slate-700 mb-3"><i class="fa-solid fa-stethoscope text-blue-500 mr-1"></i> Medical (GAMCA) &amp; Protector</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label><span class="text-slate-600">GAMCA / Slip No.</span><input name="gamca_number" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Medical Center</span><input name="medical_center" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Medical Date</span><input name="medical_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Medical Consignment No.</span><input name="medical_consignment_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Medical Send Date</span><input name="medical_send_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Courier Name</span><input name="medical_courier_name" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Protector No.</span><input name="protector_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Protector Date</span><input name="protector_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+          </div>
+        </div>
+
+        <!-- STEP 6: Visa & Travel -->
+        <div class="wizard-step hidden" data-step="6">
+          <h4 class="font-semibold text-slate-700 mb-3"><i class="fa-solid fa-passport text-blue-500 mr-1"></i> Visa &amp; Travel</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label><span class="text-slate-600">Visa Stamp Date</span><input name="visa_stamp_date" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">E-Number (Emigration)</span><input name="e_number" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Destination</span><input name="destination" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Flight No.</span><input name="flight_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Date of Departure</span><input name="date_of_departure" type="date" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Ticket No.</span><input name="ticket_no" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+          </div>
+        </div>
+
+        <!-- STEP 7: Charge Summary -->
+        <div class="wizard-step hidden" data-step="7">
+          <h4 class="font-semibold text-slate-700 mb-3"><i class="fa-solid fa-receipt text-blue-500 mr-1"></i> Charge Summary &amp; Workflow Stage</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label><span class="text-slate-600">Price (Service Charge, PKR)</span><input name="price" type="number" step="0.01" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Ticket Included</span>
+              <select name="ticket_included" class="mt-1 w-full border rounded-md px-3 py-2"><option>No</option><option>Yes</option></select>
+            </label>
+            <label><span class="text-slate-600">Accommodation Allowance</span><input name="accommodation_allowance" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label><span class="text-slate-600">Food Allowance</span><input name="food_allowance" class="mt-1 w-full border rounded-md px-3 py-2"></label>
+            <label class="md:col-span-3"><span class="text-slate-600">Slot Notes</span><textarea name="slot_notes" rows="2" class="mt-1 w-full border rounded-md px-3 py-2"></textarea></label>
+            <label class="md:col-span-3"><span class="text-slate-600">Workflow Stage</span>
+              <select name="status" id="statusSelect" class="mt-1 w-full border rounded-md px-3 py-2"></select>
+            </label>
+          </div>
+          <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-800">
+            <i class="fa-solid fa-info-circle mr-1"></i>
+            Each step is auto-saved as you click <b>Next</b>. Close anytime and resume from the <b>Resume Drafts</b> shelf. Click <b>Finalize</b> to create/update the candidate record.
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Modal footer -->
+    <div class="px-6 py-3 border-t border-slate-200 bg-white flex items-center justify-between">
+      <div class="text-xs text-slate-500" id="stepLabel">Step 1 of 7 · Personal Info</div>
+      <div class="flex gap-2">
+        <button id="prevBtn" onclick="prevStep()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md hidden">
+          <i class="fa-solid fa-arrow-left"></i> Previous
+        </button>
+        <button onclick="closeCandidateModal()" id="cmCancelBtn" class="px-4 py-2 text-sm border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md">
+          Cancel
+        </button>
+        <button onclick="saveAndCloseDraft()" id="saveDraftBtn" class="px-4 py-2 text-sm border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-md">
+          <i class="fa-regular fa-floppy-disk"></i> Save Draft
+        </button>
+        <button id="nextBtn" onclick="nextStep()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-md">
+          Next <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <button id="finalizeBtn" onclick="finalizeWizard()" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2 rounded-md">
+          <i class="fa-solid fa-check"></i> Finalize Candidate
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let CANDIDATES = [];
+let STAGES = [];
+let currentStep = 1;
+let WIZARD_ID = null;       // current draft id (from CandidateWizardState)
+let EDITING_CAND_ID = null; // candidate id we are editing (if any)
+let TOTAL_STEPS = 7;        // dynamic: Edit=6 (no Charge Summary), Assign/New=7
+const STEP_LABELS = ['', 'Personal Info', 'Identification', 'Employment', 'Next of Kin', 'Medical & Protector', 'Visa & Travel', 'Charge Summary'];
+
+function setWizardMode(mode /* 'edit' | 'new' | 'assign' */) {
+    // Charge Summary (step 7) is skipped in pure edit mode
+    TOTAL_STEPS = (mode === 'edit') ? 6 : 7;
+    // Toggle the Charge Summary (step 7) row visibility in the stepper
+    const step7 = document.querySelector('.stepper .step[data-step="7"]');
+    if (step7) step7.classList.toggle('hidden', TOTAL_STEPS === 6);
+}
+
+// --------------------- Stage helpers ---------------------
+async function loadStages() {
+    const { data } = await axios.get('/api/candidates/stages');
+    STAGES = data.stages || [];
+    const opts = STAGES.map(s => `<option value="${s.value}">${s.label}</option>`).join('');
+    document.getElementById('statusFilter').innerHTML = `<option value="">All Stages</option>` + opts;
+    const sel = document.getElementById('statusSelect');
+    if (sel) sel.innerHTML = opts;
+}
+
+function fmtStatus(s, l) {
+    const stage = STAGES.find(x => x.value === s);
+    const lbl = l || (stage ? stage.label : s || 'New');
+    const cls = stage ? stage.classes : 'bg-slate-100 text-slate-600';
+    return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold ${cls}">${lbl}</span>`;
+}
+
+// --------------------- Candidate list ---------------------
+function _skeletonRows(n) {
+    let rows = '';
+    for (let i = 0; i < n; i++) {
+        rows += `<tr class="animate-pulse">
+            <td><div class="h-3 bg-slate-200 rounded w-32"></div></td>
+            <td><div class="h-3 bg-slate-200 rounded w-24"></div></td>
+            <td><div class="h-3 bg-slate-200 rounded w-20"></div></td>
+            <td><div class="h-3 bg-slate-200 rounded w-24"></div></td>
+            <td><div class="h-3 bg-slate-200 rounded w-20"></div></td>
+            <td><div class="h-3 bg-slate-200 rounded w-20"></div></td>
+            <td><div class="h-3 bg-slate-200 rounded w-12"></div></td>
+        </tr>`;
+    }
+    return rows;
+}
+
+// Tiny in-memory cache for the candidate list (60s TTL) so back-nav and
+// filter toggles feel instant.
+const _CAND_LIST_CACHE = { url: null, data: null, ts: 0 };
+
+// ---------------- Pagination state ----------------
+// Mirrors reference UX: "N total · Page X of Y · 30 per page".
+let PG = { page: 1, size: 20, total: 0 };
+
+function _fmtClientCell(c) {
+    if (!c.client_name) return '<span class="text-slate-300">—</span>';
+    const name = c.client_name.length > 28 ? (c.client_name.slice(0, 28) + '…') : c.client_name;
+    return `<span class="text-slate-700" title="${(c.client_name||'').replace(/"/g,'&quot;')}">${name}</span>`;
+}
+function _fmtDemandCell(c) {
+    if (!c.demand_id) return '<span class="text-slate-300">—</span>';
+    return `<a href="/demands/${c.demand_id}" onclick="event.stopPropagation()" class="font-mono text-xs text-blue-600 hover:underline">${c.demand_file_no_display || c.demand_file_no || '—'}</a>`;
+}
+function _fmtCategoryCell(c) {
+    const cat = c.trade || c.profession || '';
+    if (!cat) return '<span class="text-slate-300">—</span>';
+    return `<span class="text-slate-600">${cat}</span>`;
+}
+
+async function loadCandidates() {
+    const q  = document.getElementById('searchInput').value.trim();
+    const st = document.getElementById('statusFilter').value;
+    const cl = document.getElementById('clientFilter').value;
+    const df = document.getElementById('demandFilter').value;
+    const ct = document.getElementById('categoryFilter').value;
+    const params = new URLSearchParams();
+    if (q)  params.set('q', q);
+    if (st) params.set('status', st);
+    if (cl) params.set('client_id', cl);
+    if (df) params.set('demand_id', df);
+    if (ct) params.set('category', ct);
+    params.set('limit', String(PG.size));
+    params.set('skip',  String((PG.page - 1) * PG.size));
+    const url = '/api/candidates/?' + params.toString();
+    const tbody = document.getElementById('tbody');
+    if (!CANDIDATES.length) tbody.innerHTML = _skeletonRows(8);
+
+    // Cache by URL for 60s (invalidated on mutation by clearCache())
+    const now = Date.now();
+    let data;
+    if (_CAND_LIST_CACHE.url === url && (now - _CAND_LIST_CACHE.ts) < 60_000 && _CAND_LIST_CACHE.data) {
+        data = _CAND_LIST_CACHE.data;
+    } else {
+        const resp = await axios.get(url);
+        data = resp.data;
+        _CAND_LIST_CACHE.url = url; _CAND_LIST_CACHE.data = data; _CAND_LIST_CACHE.ts = now;
+    }
+    const items = data.items || data || [];
+    CANDIDATES = items;
+    PG.total = data.total !== undefined ? data.total : items.length;
+    document.getElementById('totalCount').textContent = `${PG.total} total`;
+
+    // Show "Clear" link only if any filter is active
+    const anyFilter = !!(q || st || cl || df || ct);
+    document.getElementById('clearFiltersBtn').classList.toggle('hidden', !anyFilter);
+
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-slate-400 py-12"><i class="fa-regular fa-id-badge text-3xl block mb-2"></i>${anyFilter ? 'No candidates match these filters.' : 'No candidates yet. Open a <b>Demand File</b> and assign candidates to a trade.'}</td></tr>`;
+        updatePaginationFooter();
+        return;
+    }
+    tbody.innerHTML = items.map(c => {
+        return `
+        <tr class="cursor-pointer hover:bg-blue-50/40" onclick="openView(${c.id})">
+            <td>
+                <div class="font-semibold text-slate-900">${c.full_name||'—'}</div>
+                ${c.father_name ? '<div class="text-slate-500 mt-0.5">S/O '+c.father_name+'</div>' : ''}
+            </td>
+            <td>
+                ${c.demand_file_no_display ? `
+                    <div class="font-semibold text-blue-600">${c.demand_file_no_display}</div>
+                    ${c.client_name ? '<div class="text-slate-500 mt-0.5">'+c.client_name+'</div>' : ''}
+                ` : `
+                    <a href="/demands" class="bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100 text-xs font-semibold px-2.5 py-1 rounded inline-block" onclick="event.stopPropagation()">Assign File</a>
+                `}
+            </td>
+            <td class="font-semibold text-slate-700">${c.embassy || '—'}</td>
+            <td class="font-mono text-slate-700">${c.passport_no||'—'}</td>
+            <td class="font-mono text-slate-700">${c.cnic||'—'}</td>
+            <td class="text-slate-700">${c.trade || c.profession || '—'}</td>
+            <td class="text-slate-700">${c.phone||'—'}</td>
+            <td>${fmtStatus(c.status, c.status_label)}</td>
+            <td class="text-center">
+                <button onclick="event.stopPropagation(); openView(${c.id})" class="text-blue-600 hover:bg-blue-50 rounded p-2" title="View candidate">
+                    <i class="fa-regular fa-eye text-base"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+    updatePaginationFooter();
+}
+
+function updatePaginationFooter() {
+    const totalPages = Math.max(1, Math.ceil(PG.total / PG.size));
+    if (PG.page > totalPages) PG.page = totalPages;
+    const from = PG.total === 0 ? 0 : ((PG.page - 1) * PG.size) + 1;
+    const to   = Math.min(PG.total, PG.page * PG.size);
+    document.getElementById('pgInfo').textContent =
+        `${PG.total} total · Showing ${from}–${to} · Page ${PG.page} of ${totalPages}`;
+    document.getElementById('pgPrev').disabled = PG.page <= 1;
+    document.getElementById('pgNext').disabled = PG.page >= totalPages;
+}
+function changePage(delta) {
+    const totalPages = Math.max(1, Math.ceil(PG.total / PG.size));
+    PG.page = Math.min(totalPages, Math.max(1, PG.page + delta));
+    loadCandidates();
+}
+function clearFilters() {
+    ['searchInput','statusFilter','clientFilter','demandFilter','categoryFilter'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    PG.page = 1;
+    loadCandidates();
+}
+
+// ----------- Filter wiring -----------
+document.getElementById('searchInput').addEventListener('input',  () => { clearTimeout(window._st); window._st = setTimeout(() => { PG.page = 1; loadCandidates(); }, 300); });
+document.getElementById('statusFilter').addEventListener('change', () => { PG.page = 1; loadCandidates(); });
+document.getElementById('clientFilter').addEventListener('change', () => { PG.page = 1; loadDemandsForFilter(); loadCandidates(); });
+document.getElementById('demandFilter').addEventListener('change', () => { PG.page = 1; loadCandidates(); });
+document.getElementById('categoryFilter').addEventListener('change',() => { PG.page = 1; loadCandidates(); });
+document.getElementById('pgSize').addEventListener('change', e => { PG.size = parseInt(e.target.value, 10) || 20; PG.page = 1; loadCandidates(); });
+
+// ----------- Load filter option lists (one-shot at page load, cached) -----------
+async function loadFilterOptions() {
+    try {
+        // Clients dropdown — fetch all clients, sorted alphabetically.
+        const cr = await axios.get('/api/clients/?limit=500');
+        const cs = (cr.data.items || []).sort((a, b) => (a.company_name||'').localeCompare(b.company_name||''));
+        document.getElementById('clientFilter').innerHTML =
+            '<option value="">All Clients</option>' +
+            cs.map(c => `<option value="${c.id}">${(c.company_name||'').slice(0, 40)}</option>`).join('');
+
+        // Categories dropdown — derive from VisaCategories lookup.
+        try {
+            const vr = await axios.get('/api/lookups/visa-categories?limit=500');
+            const vs = (vr.data.items || vr.data || []).map(v => v.name || v.title || v).filter(Boolean);
+            const uniq = Array.from(new Set(vs)).sort();
+            document.getElementById('categoryFilter').innerHTML =
+                '<option value="">All Categories</option>' +
+                uniq.map(n => `<option value="${n}">${n}</option>`).join('');
+        } catch (e) { /* category dropdown is best-effort */ }
+    } catch (e) { console.warn('loadFilterOptions failed', e); }
+}
+
+// Demand File dropdown is filtered by selected client (if any) — keeps list manageable.
+async function loadDemandsForFilter() {
+    const clientId = document.getElementById('clientFilter').value;
+    try {
+        const url = clientId
+            ? `/api/clients/${clientId}/demands`
+            : `/api/demands/?limit=500`;
+        const r = await axios.get(url);
+        const arr = (r.data.items || r.data || []).map(d => ({ id: d.id, label: d.file_number_display || d.file_number || d.demand_code || ('#' + d.id) }));
+        const sel = document.getElementById('demandFilter');
+        const prev = sel.value;
+        sel.innerHTML = '<option value="">All Demand Files</option>' +
+            arr.map(d => `<option value="${d.id}">${d.label}</option>`).join('');
+        // Restore previous selection only if still present.
+        if (prev && arr.find(d => String(d.id) === String(prev))) sel.value = prev;
+    } catch (e) { console.warn('loadDemandsForFilter failed', e); }
+}
+
+// --------------------- Drafts shelf ---------------------
+async function loadDrafts() {
+    const { data } = await axios.get('/api/candidates/wizard/active');
+    const shelf = document.getElementById('draftShelf');
+    const cnt = document.getElementById('draftCount');
+    if (!data || data.length === 0) {
+        shelf.classList.add('hidden');
+        cnt.classList.add('hidden');
+        alert('No unfinished drafts.');
+        return;
+    }
+    cnt.textContent = data.length;
+    cnt.classList.remove('hidden');
+    shelf.classList.remove('hidden');
+    document.getElementById('draftList').innerHTML = data.map(d => {
+        const name = (d.step_data && d.step_data['1'] && d.step_data['1'].full_name) || '(unnamed)';
+        const father = (d.step_data && d.step_data['1'] && d.step_data['1'].father_name) || '';
+        return `
+        <div class="border border-amber-200 bg-amber-50/40 rounded-lg p-3 hover:bg-amber-50 cursor-pointer" onclick="resumeWizard(${d.id})">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="font-semibold text-slate-800 text-sm">${name}</div>
+                    <div class="text-xs text-slate-500">S/O ${father||'—'}</div>
+                </div>
+                <span class="text-[10px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded">Step ${d.current_step}/${d.total_steps}</span>
+            </div>
+            <div class="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                <span>Updated ${(d.updated_at||'').split('T')[0]}</span>
+                <button onclick="event.stopPropagation();discardDraft(${d.id})" class="text-rose-500 hover:underline">Discard</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+async function discardDraft(id) {
+    if (!confirm('Discard this draft?')) return;
+    await axios.delete(`/api/candidates/wizard/${id}`);
+    loadDrafts();
+}
+async function resumeWizard(wizardId) {
+    const { data } = await axios.get(`/api/candidates/wizard/${wizardId}`);
+    WIZARD_ID = data.id;
+    EDITING_CAND_ID = data.candidate_id;
+    setWizardMode(EDITING_CAND_ID ? 'edit' : 'new');
+    document.getElementById('cmTitle').textContent = EDITING_CAND_ID ? 'Edit Candidate' : 'Resume Candidate Draft';
+    document.getElementById('cmSubtitle').textContent = `Wizard #${WIZARD_ID} · resuming at step ${data.current_step}`;
+    // Hydrate form from step_data
+    const f = document.getElementById('wizardForm');
+    f.reset();
+    let _photoVal = '';
+    Object.values(data.step_data || {}).forEach(slice => {
+        Object.entries(slice || {}).forEach(([k, v]) => {
+            if (k === 'photo' && v) _photoVal = v;
+            if (f.elements[k] !== undefined && v !== null && v !== undefined) f.elements[k].value = v;
+        });
+    });
+    resetWizardPhotoUI(_photoVal);
+    setStep(Math.min(data.current_step || 1, TOTAL_STEPS));
+    openCandidateModal();
+}
+
+// ------------------- New Candidate prompt -------------------
+// Opens a small modal that lets the user pick a Demand File + Trade so
+// every candidate gets linked to its Client, File No. and Embassy.
+// Required because the backend enforces job_category_id on wizard create.
+async function newCandidatePrompt() {
+    // Build modal if not already present
+    let m = document.getElementById('newCandModal');
+    if (!m) {
+        m = document.createElement('div');
+        m.id = 'newCandModal';
+        m.className = 'modal-overlay';
+        m.innerHTML = `
+            <div class="modal-box" style="max-width:560px">
+              <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i>New Candidate</h3>
+                <button onclick="document.getElementById('newCandModal').remove()" class="text-slate-400 hover:text-slate-700 text-xl"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <div class="p-5 space-y-3 text-sm">
+                <p class="text-slate-600">Select the Demand File and Trade this candidate will be assigned to. This ensures the candidate is linked to its <b>Client</b>, <b>File No.</b> and <b>Embassy</b>.</p>
+                <div>
+                  <label class="form-label">Demand File <span class="text-rose-500">*</span></label>
+                  <select id="ncDemand" class="form-select"><option value="">-- Loading... --</option></select>
+                </div>
+                <div>
+                  <label class="form-label">Trade / Job Category <span class="text-rose-500">*</span></label>
+                  <select id="ncTrade" class="form-select" disabled><option value="">-- Select a demand first --</option></select>
+                </div>
+              </div>
+              <div class="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+                <button onclick="document.getElementById('newCandModal').remove()" class="btn btn-outline">Cancel</button>
+                <button id="ncContinue" onclick="newCandidateContinue()" class="btn btn-primary" disabled><i class="fa-solid fa-arrow-right"></i> Continue</button>
+              </div>
+            </div>`;
+        document.body.appendChild(m);
+
+        // Load demand files
+        try {
+            const { data } = await axios.get('/api/demands?limit=500');
+            const items = data.items || data || [];
+            const sel = document.getElementById('ncDemand');
+            sel.innerHTML = '<option value="">-- Select Demand File --</option>' +
+                items.map(d => `<option value="${d.id}">${d.file_number_display || d.file_number || '#'+d.id} — ${(d.client_name||'')} ${d.country?'('+d.country+')':''}</option>`).join('');
+            sel.onchange = onDemandPicked;
+        } catch (e) {
+            document.getElementById('ncDemand').innerHTML = '<option>Failed to load demands</option>';
+        }
+    }
+}
+
+async function onDemandPicked() {
+    const did = document.getElementById('ncDemand').value;
+    const tradeSel = document.getElementById('ncTrade');
+    const cont = document.getElementById('ncContinue');
+    cont.disabled = true;
+    if (!did) { tradeSel.innerHTML = '<option>-- Select a demand first --</option>'; tradeSel.disabled = true; return; }
+    tradeSel.innerHTML = '<option>Loading trades...</option>'; tradeSel.disabled = true;
+    try {
+        const { data } = await axios.get(`/api/demands/${did}`);
+        const trades = data.trades || data.job_categories || [];
+        if (!trades.length) {
+            tradeSel.innerHTML = '<option value="">No trades — add a trade to this demand first</option>';
+            return;
+        }
+        tradeSel.innerHTML = '<option value="">-- Select Trade --</option>' +
+            trades.map(t => `<option value="${t.id}">${t.trade || t.name || t.title} (${(t.assigned_count||0)}/${t.quantity||0})</option>`).join('');
+        tradeSel.disabled = false;
+        tradeSel.onchange = () => { cont.disabled = !tradeSel.value; };
+    } catch (e) {
+        tradeSel.innerHTML = '<option>Failed to load trades</option>';
+    }
+}
+
+function newCandidateContinue() {
+    const did = document.getElementById('ncDemand').value;
+    const tid = document.getElementById('ncTrade').value;
+    if (!did || !tid) return;
+    // Open the demand detail page with the wizard auto-launched on that trade
+    window.location.href = `/demands/${did}?trade_id=${tid}&action=assign_candidate`;
+}
+
+// =====================================================================
+// VIEW (right-side drawer, read-only) vs EDIT (centered modal wizard)
+// =====================================================================
+
+// ---- Centered modal (data entry) open/close ----
+function openCandidateModal() {
+    const m = document.getElementById('candidateModal');
+    m.classList.remove('hidden');
+    document.getElementById('cmAutosaveBadge').classList.add('hidden');
+}
+function closeCandidateModal() {
+    document.getElementById('candidateModal').classList.add('hidden');
+    // If embedded in the Demand→Trades flyout iframe, close the parent panel too.
+    if (window.parent && window.parent !== window && window.parent.closeCandidateFlyout) {
+        window.parent.closeCandidateFlyout();
+    }
+}
+
+// ---- Right-side drawer (read-only view) open/close ----
+function openDrawerUI() {
+    document.getElementById('drawerBackdrop').classList.remove('hidden');
+    const dr = document.getElementById('drawer');
+    dr.classList.remove('translate-x-full');
+    dr.classList.add('translate-x-0');
+    switchDrawerTab('profile');
+}
+// Esc key closes the drawer for keyboard-friendly UX (only when drawer is open & no modal active)
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    const dr = document.getElementById('drawer');
+    const candModal = document.getElementById('candidateModal');
+    const isDrawerOpen = dr && dr.classList.contains('translate-x-0');
+    const isModalOpen = candModal && !candModal.classList.contains('hidden');
+    // Don't fight with open modal close handlers
+    if (isModalOpen) return;
+    if (isDrawerOpen) closeDrawer();
+});
+
+function closeDrawer() {
+    if (window.parent && window.parent !== window && window.parent.closeCandidateFlyout) {
+        window.parent.closeCandidateFlyout();
+    }
+    document.getElementById('drawerBackdrop').classList.add('hidden');
+    const dr = document.getElementById('drawer');
+    dr.classList.add('translate-x-full');
+    dr.classList.remove('translate-x-0');
+}
+
+// ---- OPEN VIEW: read-only drawer (table row click / eye button) ----
+async function openView(candidateId) {
+    EDITING_CAND_ID = candidateId;
+    ['drawerEmbassyBadge','drawerClientBadge','drawerDemandBadge'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.classList.add('hidden');
+    });
+    try {
+        const { data: cand } = await axios.get(`/api/candidates/${candidateId}`);
+        populateProfileView(cand);
+        renderStatusGrid(cand);
+        document.getElementById('drawerTitle').textContent = cand.full_name || 'Candidate';
+        document.getElementById('drawerSubtitle').textContent = cand.father_name ? `S/O ${cand.father_name} · #${candidateId}` : `Candidate #${candidateId}`;
+    } catch (e) { console.warn('Failed to fetch candidate', e); }
+    loadAuditTrail(candidateId);
+    loadAssignmentsBlock(candidateId);
+    loadStatusHistory(candidateId);
+    openDrawerUI();
+}
+
+// ---- Edit button inside the drawer → switch to the centered modal ----
+function editFromDrawer() {
+    if (!EDITING_CAND_ID) return;
+    closeDrawer();
+    openWizard(EDITING_CAND_ID, 'edit');
+}
+
+// ---- OPEN WIZARD: centered modal for Add (new/assign) or Edit ----
+async function openWizard(candidateId, mode = 'edit') {
+    EDITING_CAND_ID = candidateId;
+    WIZARD_ID = null;
+    document.getElementById('wizardForm').reset();
+    resetWizardPhotoUI('');
+    document.getElementById('cmAutosaveBadge').classList.add('hidden');
+    // Mode: edit (existing candidate) = 6 steps, new/assign = 7 steps
+    setWizardMode(candidateId ? 'edit' : (new URLSearchParams(window.location.search).get('trade_id') ? 'assign' : 'new'));
+    if (candidateId) {
+        // Open or reuse wizard for existing candidate
+        const { data } = await axios.post(`/api/candidates/wizard/from-candidate/${candidateId}`);
+        WIZARD_ID = data.id;
+        const f = document.getElementById('wizardForm');
+        let _photoVal = '';
+        Object.values(data.step_data || {}).forEach(slice => {
+            Object.entries(slice || {}).forEach(([k, v]) => {
+                if (k === 'photo' && v) _photoVal = v;
+                if (f.elements[k] !== undefined && v !== null && v !== undefined) f.elements[k].value = v;
+            });
+        });
+        resetWizardPhotoUI(_photoVal);
+        document.getElementById('cmTitle').textContent = 'Edit Candidate';
+        document.getElementById('cmSubtitle').textContent = `Candidate #${candidateId} · wizard #${WIZARD_ID}`;
+    } else {
+        // Create new wizard draft — ONLY allowed if we have a trade_id (came from a Demand File)
+        const urlParams = new URLSearchParams(window.location.search);
+        const tradeId = urlParams.get('trade_id');
+        if (!tradeId) {
+            alert('Candidates can only be added by assigning them to a Trade inside a Demand File.\n\nPlease open a Demand File and click "+ Assign Candidate" on a Trade.');
+            window.location.href = '/demands';
+            return;
+        }
+        const body = { job_category_id: parseInt(tradeId) };
+        const { data } = await axios.post('/api/candidates/wizard', body);
+        WIZARD_ID = data.id;
+        document.getElementById('cmTitle').textContent = 'New Candidate';
+        document.getElementById('cmSubtitle').textContent = `New wizard #${WIZARD_ID} · will be auto-assigned to trade #${tradeId} on finalize`;
+    }
+    setStep(1);
+    openCandidateModal();
+}
+
+// ----- Enterprise side-panel profile view (v6) -------------------------------
+const PROFILE_STAGES = [
+    { key: 'new',           label: 'Received',   icon: 'fa-inbox' },
+    { key: 'docs_pending',  label: 'Documents',  icon: 'fa-folder-open' },
+    { key: 'medical',       label: 'Medical',    icon: 'fa-stethoscope' },
+    { key: 'protector',     label: 'Protector',  icon: 'fa-stamp' },
+    { key: 'e_number',      label: 'E-Number',   icon: 'fa-barcode' },
+    { key: 'visa_stamping', label: 'Visa',       icon: 'fa-passport' },
+    { key: 'travel_ready',  label: 'Clearance',  icon: 'fa-plane-departure' },
+    { key: 'deployed',      label: 'Departed',   icon: 'fa-circle-check' },
+];
+
+function _fmtDate(v) {
+    if (!v) return '—';
+    try {
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return v;
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (e) { return v; }
+}
+
+function _ageFrom(dob) {
+    if (!dob) return null;
+    try {
+        const d = new Date(dob);
+        if (isNaN(d.getTime())) return null;
+        const diff = Date.now() - d.getTime();
+        const a = new Date(diff).getUTCFullYear() - 1970;
+        return a >= 0 && a < 150 ? a : null;
+    } catch (e) { return null; }
+}
+
+function renderWorkflowTracker(currentStage) {
+    const el = document.getElementById('pWorkflowTracker');
+    if (!el) return;
+    const norm = (currentStage || 'new').toLowerCase();
+    let currentIdx = PROFILE_STAGES.findIndex(s => s.key === norm);
+    if (currentIdx < 0) currentIdx = 0;
+
+    const html = PROFILE_STAGES.map((s, i) => {
+        const done   = i < currentIdx;
+        const active = i === currentIdx;
+        // Light professional theme to match new slate hero header
+        const dotCls = active
+            ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md'
+            : done
+                ? 'bg-emerald-500 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-400 border border-slate-200';
+        const lblCls = active
+            ? 'text-blue-700 font-bold'
+            : done
+                ? 'text-emerald-700 font-semibold'
+                : 'text-slate-400';
+        const connector = (i < PROFILE_STAGES.length - 1)
+            ? `<div class="flex-1 h-0.5 ${i < currentIdx ? 'bg-emerald-400' : 'bg-slate-200'} mx-1"></div>`
+            : '';
+        return `
+            <div class="flex flex-col items-center gap-1 min-w-0">
+                <div class="w-8 h-8 rounded-full ${dotCls} flex items-center justify-center text-[11px] shadow-sm">
+                    <i class="fa-solid ${s.icon}"></i>
+                </div>
+                <div class="text-[9px] uppercase tracking-wide ${lblCls} text-center whitespace-nowrap">${s.label}</div>
+            </div>
+            ${connector}
+        `;
+    }).join('');
+    el.innerHTML = html;
+}
+
+function populateProfileView(cand) {
+    cand = cand || {};
+    // -------- Hero header
+    const name = cand.full_name || '—';
+    document.getElementById('pViewName').textContent = name;
+    document.getElementById('pViewFather').textContent = cand.father_name ? `S/O ${cand.father_name}` : '';
+    document.getElementById('pViewIdText').textContent = cand.id ? String(cand.id) : '—';
+
+    const enumEl = document.getElementById('pViewENumBadge');
+    if (cand.e_number) {
+        document.getElementById('pViewENumText').textContent = cand.e_number;
+        enumEl.classList.remove('hidden');
+    } else {
+        enumEl.classList.add('hidden');
+    }
+
+    const stageEl = document.getElementById('pViewStageBadge');
+    if (cand.status_label) {
+        document.getElementById('pViewStageText').textContent = cand.status_label;
+        stageEl.classList.remove('hidden');
+    } else {
+        stageEl.classList.add('hidden');
+    }
+
+    // Workflow tracker
+    renderWorkflowTracker(cand.status || 'new');
+
+    // -------- Photo / initials placeholder
+    const photoEl = document.getElementById('pViewPhoto');
+    if (cand.photo) {
+        photoEl.innerHTML = `<img src="/static/uploads/photos/${cand.photo}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='${(name||'?')[0].toUpperCase()}'">`;
+    } else {
+        photoEl.innerHTML = (name || '?')[0].toUpperCase();
+    }
+
+    // -------- Personal Information card
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = (v === null || v === undefined || v === '') ? '—' : v; };
+    set('pInfoName',        name);
+    set('pInfoNameAr',      cand.name_arabic || '—');
+    set('pInfoFather',      cand.father_name || '—');
+    set('pInfoMother',      cand.mother_name || '—');
+    set('pInfoDOB',         _fmtDate(cand.date_of_birth));
+    set('pInfoPOB',         cand.place_of_birth || '—');
+    set('pInfoGender',      cand.gender || '—');
+    set('pInfoMarital',     cand.marital_status || '—');
+    set('pInfoNationality', cand.nationality || '—');
+    set('pInfoReligion',    cand.religion || '—');
+    set('pInfoQual',        cand.qualification || '—');
+    const ageVal = _ageFrom(cand.date_of_birth);
+    set('pInfoAge',         ageVal ? `${ageVal} years` : '—');
+
+    // -------- Identity & Passport card
+    set('pIdCNIC',          cand.cnic || '—');
+    set('pIdPassport',      cand.passport_no || '—');
+    set('pIdPassIssue',     _fmtDate(cand.passport_issue_date));
+    set('pIdPassExpiry',    _fmtDate(cand.passport_expiry_date));
+    set('pIdIssuePlace',    cand.passport_issue_place || '—');
+    set('pIdAuthority',     cand.issuing_authority || '—');
+
+    // -------- Contact & Address card
+    set('pContactPhone',    cand.phone || '—');
+    set('pContactEmail',    cand.email || '—');
+    set('pContactTehsil',   cand.tehsil || '—');
+    set('pContactDistrict', cand.district || '—');
+    set('pContactProvince', cand.province || '—');
+    set('pContactAddress',  cand.address || '—');
+
+    // -------- Next of Kin card
+    set('pNOKName', cand.next_of_kin_name || '—');
+    set('pNOKCnic', cand.next_of_kin_nic || '—');
+    set('pNOKRel',  cand.next_of_kin_relation || '—');
+
+    // -------- Linked Demand File card
+    set('pDemandFileNo',   cand.demand_file_no_display || cand.demand_file_no || '—');
+    set('pDemandClient',   cand.client_name || '—');
+    set('pDemandSponsor',  cand.sponsor_name || '—');
+    set('pDemandVisaNo',   cand.visa_number || '—');
+    set('pDemandCountry',  cand.country || '—');
+    set('pDemandEmbassy',  cand.embassy || '—');
+    const linkEl = document.getElementById('pDemandFileLink');
+    if (cand.demand_id) {
+        linkEl.href = `/demands/${cand.demand_id}`;
+        linkEl.classList.remove('hidden');
+    } else {
+        linkEl.classList.add('hidden');
+    }
+
+    // -------- Visa Category card
+    set('pVisaTrade',  cand.trade || cand.profession || '—');
+    set('pVisaSalary', cand.salary ? `${cand.salary}` : '—');
+    set('pVisaNotes',  cand.notes || '—');
+
+    // -------- Legacy hidden mirrors for backwards-compatible code paths
+    const legacy = {
+        pViewPassport: cand.passport_no || '—',
+        pViewCNIC:     cand.cnic || '—',
+        pViewPhone:    cand.phone || '—',
+        pViewTrade:    cand.trade || cand.profession || '—',
+        pViewDemand:   cand.demand_file_no_display || '—',
+        pViewClient:   cand.client_name || '—',
+        pViewEmbassy:  cand.embassy || '—',
+        pViewSalary:   cand.salary ? `${cand.salary}` : '—',
+        pViewQual:     cand.qualification || '—',
+        pViewMarital:  cand.marital_status || '—',
+        pViewRel:      cand.religion || '—',
+        pViewAddr:     cand.address || '—',
+        pViewNOK:      cand.next_of_kin_name || '—',
+    };
+    Object.entries(legacy).forEach(([id, v]) => { const e = document.getElementById(id); if (e) e.textContent = v; });
+}
+
+function switchDrawerTab(tab) {
+    document.querySelectorAll('[data-dtab]').forEach(b => b.classList.toggle('active', b.dataset.dtab === tab));
+    document.querySelectorAll('.dtab-pane').forEach(p => p.classList.toggle('hidden', p.id !== 'dtab-' + tab));
+    if (tab === 'documents' && EDITING_CAND_ID) loadCandidateDocuments();
+}
+
+/**
+ * Print the candidate's CV-style profile directly to the printer.
+ *
+ * Strategy: load the server-rendered profile HTML into a hidden iframe,
+ * then call iframe.contentWindow.print(). This fires the OS print
+ * dialog without opening a new tab/popup — matching the user's
+ * requirement: "directly printing panel view and print without
+ * redirect new tab or view".
+ *
+ * The server route includes `auto_print=0` because we control print()
+ * timing from the parent so it stays in sync with iframe load.
+ */
+function printCandidateProfile() {
+    if (!EDITING_CAND_ID) return;
+    const btn = document.getElementById('drawerPrintBtn');
+    const iframe = document.getElementById('candidatePrintFrame');
+    if (!iframe) {
+        // Fallback to popup if the iframe ever goes missing.
+        window.open(`/api/candidates/${EDITING_CAND_ID}/print-profile?auto_print=1`, '_blank');
+        return;
+    }
+    // Loading spinner on the button so the user knows it's working
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Preparing…</span>';
+    }
+    // Reset previous load handler then attach a new one
+    iframe.onload = null;
+    iframe.onload = function () {
+        try {
+            const win = iframe.contentWindow;
+            // Wait a beat so styles + background image are fully painted
+            setTimeout(function () {
+                try {
+                    win.focus();
+                    win.print();
+                } catch (e) {
+                    console.error('iframe print() failed:', e);
+                    // Final fallback: open in a new tab so the user can still print
+                    window.open(`/api/candidates/${EDITING_CAND_ID}/print-profile?auto_print=1`, '_blank');
+                }
+                if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+            }, 350);
+        } catch (e) {
+            console.error('print iframe access failed:', e);
+            if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+        }
+    };
+    // Cache-bust so the iframe always reloads fresh data
+    iframe.src = `/api/candidates/${EDITING_CAND_ID}/print-profile?auto_print=0&t=${Date.now()}`;
+}
+
+// --------------------- CANDIDATE DOCUMENTS (data-overlay print) ---------------------
+let _CAND_EMBASSY = '';
+let _CAND_EMBASSY_SHORT = '';
+let _CAND_CONTEXT = {};
+async function loadCandidateDocuments() {
+    const cid = EDITING_CAND_ID;
+    if (!cid) return;
+    // Refresh embassy/context from candidate detail (server-side _to_dict with_context)
+    try {
+        const { data: cand } = await axios.get(`/api/candidates/${cid}`);
+        _CAND_CONTEXT = cand || {};
+        _CAND_EMBASSY = (cand && cand.embassy) || '';
+        const embLow = _CAND_EMBASSY.toLowerCase();
+        const isKhi = embLow.includes('karachi');
+        const isIsb = embLow.includes('islamabad');
+        // Normalised short form for visa filtering ('Karachi' | 'Islamabad' | '')
+        _CAND_EMBASSY_SHORT = isKhi ? 'Karachi' : (isIsb ? 'Islamabad' : '');
+        // Update drawer header badges
+        const eb = document.getElementById('drawerEmbassyBadge');
+        if (_CAND_EMBASSY) {
+            eb.textContent = _CAND_EMBASSY;
+            eb.className = 'px-2 py-0.5 text-[10px] rounded-full font-semibold ' + (isKhi ? 'bg-emerald-50 text-emerald-700' : (isIsb ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700'));
+            eb.classList.remove('hidden');
+        } else { eb.classList.add('hidden'); }
+        const cb = document.getElementById('drawerClientBadge');
+        if (cand && cand.client_name) { cb.textContent = cand.client_name; cb.classList.remove('hidden'); } else { cb.classList.add('hidden'); }
+        const db_ = document.getElementById('drawerDemandBadge');
+        if (cand && (cand.demand_file_no_display || cand.demand_file_no)) { db_.textContent = cand.demand_file_no_display || cand.demand_file_no; db_.classList.remove('hidden'); } else { db_.classList.add('hidden'); }
+        document.getElementById('visaEmbassyHint').textContent = _CAND_EMBASSY ? ('Embassy: ' + _CAND_EMBASSY) : 'No embassy';
+    } catch (e) { /* ignore */ }
+
+    // Load PROTECTOR and VISA_PROCESS templates
+    const [prot, visa] = await Promise.all([
+        axios.get('/api/documents/templates?category=Protector Documents'),
+        axios.get('/api/documents/templates?category=Visa Process'),
+    ]);
+    renderDocList('protectorList', 'protectorCount', prot.data, 'emerald');
+    // STRICT embassy filter (v8): if candidate's demand embassy = ISB → show ONLY
+    // Islamabad-specific Visa Application + generic visa-process letters.
+    // If KHI → show ONLY Karachi-specific Visa Application + generics.
+    // Generic templates (no city in name) are ALWAYS shown so common letters
+    // like "E-Number Enrollment Request Form" and "Passport Submission Letter"
+    // remain available regardless of embassy.
+    let visaItems = visa.data || [];
+    if (_CAND_EMBASSY_SHORT) {
+        const myEmbassy = _CAND_EMBASSY_SHORT.toLowerCase();
+        const otherEmbassy = myEmbassy === 'karachi' ? 'islamabad' : 'karachi';
+        visaItems = visaItems.filter(t => {
+            const nm = (t.name || '').toLowerCase();
+            // Drop the OTHER embassy's form completely
+            if (nm.includes(otherEmbassy)) return false;
+            // Keep everything else (matching-embassy OR generic / no-city)
+            return true;
+        });
+        // Sort: matching-embassy templates first, then generic ones
+        visaItems.sort((a, b) => {
+            const aMatch = (a.name || '').toLowerCase().includes(myEmbassy) ? 0 : 1;
+            const bMatch = (b.name || '').toLowerCase().includes(myEmbassy) ? 0 : 1;
+            return aMatch - bMatch;
+        });
+    }
+    renderDocList('visaList', 'visaCount', visaItems, 'indigo');
+    // Always prepend the E-Barcode synthetic document under VISA CATEGORY
+    // DOCUMENTS (was previously under Protector). It's auto-generated from
+    // the candidate's E-Number + Passport Number and prints on a BLANK
+    // page (no letterhead).
+    injectEBarcodeRow();
+}
+
+// Open the print preview in a popup window — auto-print script will fire
+// inside that window so the user immediately sees the browser print dialog.
+// If popups are blocked we fall back to a new tab.
+function openPrintWindow(url, tplName) {
+    try {
+        const u = new URL(url, window.location.origin);
+        const parts = u.pathname.split('/');
+        const tplId = parts[4];
+        const recordId = u.searchParams.get('record_id') || '';
+        showGlobalPrintModal(tplId, recordId, tplName || 'Candidate Document');
+    } catch (e) {
+        const w = 900, h = 1100;
+        const left = (screen.width - w) / 2;
+        const top = (screen.height - h) / 2;
+        const features = `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no,scrollbars=yes`;
+        const win = window.open(url, 'dtc_print_preview', features);
+        if (!win) {
+            window.location.href = url;
+        } else {
+            win.focus();
+        }
+    }
+}
+
+function renderDocList(containerId, countId, items, color) {
+    const el = document.getElementById(containerId);
+    document.getElementById(countId).textContent = (items || []).length;
+    if (!items || items.length === 0) {
+        el.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm"><i class="fa-regular fa-folder-open text-2xl block mb-2"></i>No templates configured in this group. Add one from <a href="/documents" class="text-blue-600 hover:underline">Documents</a> page.</div>`;
+        return;
+    }
+    const cid = EDITING_CAND_ID;
+    el.innerHTML = items.map(t => {
+        const ds = (t.data_source || 'candidate');
+        const recId = (ds === 'demand' && _CAND_CONTEXT.demand_id) ? _CAND_CONTEXT.demand_id : cid;
+        // NEW: /print returns an HTML page with the real-image overlay engine
+        // and auto-opens the browser print dialog (no file download, no blank tab).
+        const printUrl = `/api/documents/templates/${t.id}/print?record_id=${recId}&auto=1`;
+        const customizeUrl = `/documents/customize/${t.id}?record_id=${recId}`;
+        // Escape template name for JavaScript single-quote safety
+        const safeName = (t.name || '').replace(/'/g, "\\'");
+        return `
+        <div class="flex items-center justify-between px-4 py-3 hover:bg-slate-50">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-9 h-9 rounded-md bg-${color}-50 text-${color}-600 flex items-center justify-center flex-shrink-0">
+                    <i class="fa-regular fa-file-pdf"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="font-semibold text-sm text-slate-800 truncate">${t.name}</div>
+                    <div class="text-[11px] text-slate-500">${t.description||''}</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button onclick="openPrintWindow('${printUrl}', '${safeName}')" class="px-3 py-1.5 bg-${color}-600 hover:bg-${color}-700 text-white text-xs font-semibold rounded inline-flex items-center gap-1">
+                    <i class="fa-solid fa-print"></i> Print
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+/**
+ * Direct popup for the auto-generated E-Barcode HTML. Unlike the other
+ * Protector documents (which go through the global Print Modal that
+ * expects a tpl_id), the E-Barcode endpoint returns ready-to-print HTML
+ * straight away — we just open it in a new tab and the inline auto-print
+ * script in the rendered page handles the rest.
+ */
+/**
+ * Print ANY rendered-HTML document (E-Barcode, profile, full letter) via the
+ * hidden #candidatePrintFrame iframe. This avoids the new-tab popup and
+ * lets the browser print dialog open over the current page — matching the
+ * user requirement: "directly printing panel view and print without
+ * redirect new tab or view".
+ *
+ * The URL is loaded with auto_print=0 (when supported by the backend
+ * route) because we control print() from the parent so popup timing
+ * is reliable across browsers.
+ *
+ * If the iframe element is missing for any reason we fall back to a
+ * traditional popup so the user is never left without a way to print.
+ */
+function printInHiddenFrame(url) {
+    const iframe = document.getElementById('candidatePrintFrame');
+    if (!iframe) {
+        const win = window.open(url, '_blank');
+        if (!win) window.location.href = url;
+        return;
+    }
+    // Force auto_print=0 so the iframe doesn't double-fire window.print()
+    const u = new URL(url, window.location.origin);
+    if (!u.searchParams.has('auto_print')) u.searchParams.set('auto_print', '0');
+    if (!u.searchParams.has('auto'))       u.searchParams.set('auto',       '0');
+    u.searchParams.set('_t', String(Date.now()));
+
+    iframe.onload = null;
+    iframe.onload = function () {
+        // Tiny delay so background images + fonts paint before print().
+        setTimeout(function () {
+            try {
+                const w = iframe.contentWindow;
+                w.focus();
+                w.print();
+            } catch (e) {
+                console.error('hidden-frame print failed:', e);
+                window.open(url, '_blank');
+            }
+        }, 400);
+    };
+    iframe.src = u.toString();
+}
+
+// Backwards-compatible alias used by the synthetic E-Barcode row.
+function openEBarcodePopup(url) {
+    printInHiddenFrame(url);
+}
+
+/**
+ * Prepend the auto-generated E-Barcode row to the VISA CATEGORY DOCUMENTS
+ * list (moved from Protector group in v6 per user request). Unlike the
+ * other entries (which come from the document_template table), this one
+ * is synthesized client-side because it doesn't need coordinate mapping
+ * — the renderer produces it on the fly from the candidate's E-Number +
+ * Passport Number, on a BLANK page.
+ */
+function injectEBarcodeRow() {
+    const cid = EDITING_CAND_ID;
+    if (!cid) return;
+    const el = document.getElementById('visaList');
+    if (!el) return;
+
+    const eNum   = (_CAND_CONTEXT.e_number || '').trim();
+    const pp     = (_CAND_CONTEXT.passport_no || '').trim();
+    const hasAny = !!(eNum || pp);
+    const subtitle = hasAny
+        ? `Auto-generated from E-Number ${eNum || '—'} &amp; Passport ${pp || '—'}`
+        : 'Add an E-Number or Passport Number first.';
+    const disabled = hasAny ? '' : 'opacity-50 cursor-not-allowed pointer-events-none';
+
+    // Drop any previously-prepended row so we don't duplicate it on re-renders.
+    const existing = el.querySelector('[data-synthetic="e-barcode"]');
+    if (existing) existing.remove();
+    // Also remove the legacy placement from protectorList if it exists from a
+    // previous render before this code update.
+    const legacy = document.querySelector('#protectorList [data-synthetic="e-barcode"]');
+    if (legacy) legacy.remove();
+
+    // If the visa list is currently in the "empty / no templates" placeholder
+    // state, clear it so we don't show the empty message alongside the
+    // E-Barcode row.
+    if (el.querySelector('.text-center.text-slate-400')) {
+        el.innerHTML = '';
+    }
+
+    const printUrl = `/api/protector-letters/e-barcode/${cid}`;
+    const html = `
+    <div data-synthetic="e-barcode" class="flex items-center justify-between px-4 py-3 hover:bg-slate-50 bg-indigo-50/40">
+        <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-barcode"></i>
+            </div>
+            <div class="min-w-0">
+                <div class="font-semibold text-sm text-slate-800 truncate">E-Barcode</div>
+                <div class="text-[11px] text-slate-500">${subtitle}</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <button onclick="openEBarcodePopup('${printUrl}')" class="${disabled} px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded inline-flex items-center gap-1">
+                <i class="fa-solid fa-print"></i> Print
+            </button>
+        </div>
+    </div>`;
+    el.insertAdjacentHTML('afterbegin', html);
+
+    // Bump the visa count so the badge reflects the synthetic row.
+    const countEl = document.getElementById('visaCount');
+    if (countEl) {
+        const n = parseInt(countEl.textContent || '0', 10) || 0;
+        countEl.textContent = String(n + 1);
+    }
+
+    // Also inject the NOC Verification synthetic row (renders on letterhead
+    // with body overlay — see Turn 5 user reference image).
+    injectNocVerificationRow();
+}
+
+/**
+ * Inject the auto-generated NOC Verification (Request for Visa Issue) row
+ * into the VISA CATEGORY list. Renders on company letterhead with the
+ * candidate's NAME / FATHER NAME / PP# / VISA# table overlaid — matches
+ * the user's Turn 5 reference image (NOC verification by agency NEW).
+ *
+ * v8 restriction (per user): NOC is **ISB-only** — only shown for
+ * candidates linked to a Saudi-Arabia-Islamabad embassy demand file. KHI
+ * candidates never see this row because the Karachi consulate uses a
+ * different verification workflow (no NOC letter required).
+ */
+function injectNocVerificationRow() {
+    const cid = EDITING_CAND_ID;
+    if (!cid) return;
+    const el = document.getElementById('visaList');
+    if (!el) return;
+
+    // Always wipe any previous render so a candidate that gets re-linked
+    // to a KHI demand correctly *removes* the NOC row.
+    const existing = el.querySelector('[data-synthetic="noc-verification"]');
+    if (existing) existing.remove();
+
+    // STRICT EMBASSY GATE: only Islamabad-embassy candidates get the NOC row.
+    // (Empty embassy / Karachi / Lahore / others → NOT shown.)
+    if (_CAND_EMBASSY_SHORT !== 'Islamabad') {
+        return;
+    }
+
+    const pp     = (_CAND_CONTEXT.passport_no || '').trim();
+    const fname  = (_CAND_CONTEXT.full_name || '').trim();
+    const hasAny = !!(pp && fname);
+    const subtitle = hasAny
+        ? `Royal Saudi Consulate Islamabad · ${fname.toUpperCase()} · PP ${pp}`
+        : 'Add candidate name + passport first.';
+    const disabled = hasAny ? '' : 'opacity-50 cursor-not-allowed pointer-events-none';
+
+    const printUrl = `/api/protector-letters/noc-verification/${cid}`;
+    const html = `
+    <div data-synthetic="noc-verification" class="flex items-center justify-between px-4 py-3 hover:bg-slate-50 bg-amber-50/40">
+        <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-stamp"></i>
+            </div>
+            <div class="min-w-0">
+                <div class="font-semibold text-sm text-slate-800 truncate">NOC Verification by Agency
+                    <span class="ml-1 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-600 text-white">Auto</span>
+                </div>
+                <div class="text-[11px] text-slate-500">${subtitle} <span class="ml-1 text-slate-400">(letterhead overlay · auto-fills from linked demand)</span></div>
+            </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <button onclick="printInHiddenFrame('${printUrl}')" class="${disabled} px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded inline-flex items-center gap-1">
+                <i class="fa-solid fa-print"></i> Print
+            </button>
+        </div>
+    </div>`;
+    // Append AFTER the E-Barcode row so it appears second in the list
+    const eBarcodeRow = el.querySelector('[data-synthetic="e-barcode"]');
+    if (eBarcodeRow) {
+        eBarcodeRow.insertAdjacentHTML('afterend', html);
+    } else {
+        el.insertAdjacentHTML('afterbegin', html);
+    }
+
+    const countEl = document.getElementById('visaCount');
+    if (countEl) {
+        const n = parseInt(countEl.textContent || '0', 10) || 0;
+        countEl.textContent = String(n + 1);
+    }
+}
+
+function setStep(s) {
+    currentStep = s;
+    document.querySelectorAll('.wizard-step').forEach(el => el.classList.toggle('hidden', parseInt(el.dataset.step) !== s));
+    document.querySelectorAll('.stepper .step').forEach(el => {
+        const n = parseInt(el.dataset.step);
+        el.classList.toggle('active', n === s);
+        el.classList.toggle('done', n < s);
+    });
+    document.getElementById('prevBtn').classList.toggle('hidden', s === 1);
+    document.getElementById('nextBtn').classList.toggle('hidden', s === TOTAL_STEPS);
+    document.getElementById('finalizeBtn').classList.toggle('hidden', s !== TOTAL_STEPS);
+    document.getElementById('stepLabel').textContent = `Step ${s} of ${TOTAL_STEPS} · ${STEP_LABELS[s]}`;
+}
+
+// Step → field mapping (mirrors the canonical workflow definition on the backend)
+const STEP_FIELDS = {
+    1: ['full_name','name_arabic','mother_name','father_name','father_name_arabic',
+        'gender','marital_status','religion','date_of_birth','place_of_birth',
+        'place_of_birth_arabic','nationality','address','phone','email','tehsil',
+        'district','province','photo'],
+    2: ['passport_no','passport_issue_date','passport_expiry_date',
+        'issuing_authority','issuing_authority_arabic','passport_issue_place',
+        'cnic','nadra_token_no'],
+    3: ['permission_no','permission_date','qualification','age_employee',
+        'profession','salary'],
+    4: ['next_of_kin_name','next_of_kin_nic','next_of_kin_relation','notes'],
+    5: ['gamca_number','medical_center','medical_date','medical_consignment_no',
+        'medical_send_date','medical_courier_name','protector_no','protector_date'],
+    6: ['visa_stamp_date','e_number','destination','flight_no','date_of_departure','ticket_no'],
+    7: ['price','ticket_included','accommodation_allowance','food_allowance','slot_notes','status'],
+};
+
+function collectStepData(step) {
+    const f = document.getElementById('wizardForm');
+    const out = {};
+    (STEP_FIELDS[step] || []).forEach(k => {
+        if (f.elements[k] !== undefined) {
+            const v = f.elements[k].value;
+            if (v !== '') out[k] = v;
+        }
+    });
+    return out;
+}
+
+async function persistStep(step, advance=true) {
+    if (!WIZARD_ID) return;
+    const data = collectStepData(step);
+    try {
+        await axios.patch(`/api/candidates/wizard/${WIZARD_ID}/step/${step}`, { data, advance });
+        flashSaved();
+    } catch (err) {
+        console.warn('persistStep failed', err);
+    }
+}
+
+function flashSaved() {
+    const b = document.getElementById('cmAutosaveBadge');
+    if (!b) return;
+    b.classList.remove('hidden');
+    clearTimeout(window._saveTo);
+    window._saveTo = setTimeout(() => b.classList.add('hidden'), 2000);
+}
+
+async function nextStep() {
+    // Validate Step 1 required fields before leaving
+    if (currentStep === 1) {
+        const f = document.getElementById('wizardForm');
+        if (!f.elements['full_name'].value.trim()) { alert('Full Name is required'); return; }
+        if (!f.elements['father_name'].value.trim()) { alert('Father Name is required'); return; }
+    }
+    await persistStep(currentStep, true);
+    if (currentStep < TOTAL_STEPS) setStep(currentStep + 1);
+}
+async function prevStep() {
+    await persistStep(currentStep, false);
+    if (currentStep > 1) setStep(currentStep - 1);
+}
+
+async function saveAndCloseDraft() {
+    await persistStep(currentStep, false);
+    closeCandidateModal();
+    _CAND_LIST_CACHE.url = null; // invalidate cache after mutation
+    loadCandidates();
+}
+
+async function finalizeWizard() {
+    if (!WIZARD_ID) return;
+    // Save the current step first
+    await persistStep(currentStep, false);
+    try {
+        const { data } = await axios.post(`/api/candidates/wizard/${WIZARD_ID}/finalize`);
+        _CAND_LIST_CACHE.url = null; // invalidate cache after mutation
+        const inFlyout = window.parent && window.parent !== window && window.parent.closeCandidateFlyout;
+        if (inFlyout) {
+            // Embedded in Demand→Trades flyout: notify parent (it reloads trades) and close.
+            if (window.parent.showToast) {
+                window.parent.showToast(`✅ Candidate "${data.candidate.full_name}" saved`);
+            }
+            closeCandidateModal(); // also closes parent flyout
+        } else {
+            closeCandidateModal();
+            loadCandidates();
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('trade_id')) {
+                window.history.replaceState({}, '', '/candidates');
+                alert(`Candidate "${data.candidate.full_name}" created and assigned successfully.`);
+            }
+        }
+    } catch (err) {
+        alert((err.response && err.response.data && err.response.data.detail) || 'Failed to finalize wizard');
+    }
+}
+
+function renderStatusGrid(stepData) {
+    // step_data may either be the merged dict or the wizard.step_data slice map
+    let merged = {};
+    if (stepData && (stepData['1'] || stepData['5'])) {
+        Object.values(stepData).forEach(s => Object.assign(merged, s || {}));
+    } else {
+        merged = stepData || {};
+    }
+    const fields = [
+        ['Protector No.', merged.protector_no],
+        ['Protector Date', merged.protector_date],
+        ['Medical Center', merged.medical_center],
+        ['GAMCA Number', merged.gamca_number],
+        ['Medical Date', merged.medical_date],
+        ['E-Number', merged.e_number],
+        ['Date of Departure', merged.date_of_departure],
+        ['Flight No.', merged.flight_no],
+        ['Destination', merged.destination],
+        ['Ticket No.', merged.ticket_no],
+        ['Visa Stamp Date', merged.visa_stamp_date],
+        ['Stage', fmtStatus(merged.status || 'new')],
+    ];
+    document.getElementById('statusGrid').innerHTML = fields.map(([l, v]) =>
+        `<div><div class="text-slate-500 text-xs mb-0.5">${l}</div><div class="text-slate-800 font-medium">${v || '<span class="text-slate-300">—</span>'}</div></div>`
+    ).join('');
+    // Sync the workflow-stage dropdown to the candidate's current stage
+    const sel = document.getElementById('statusStageSelect');
+    if (sel) {
+        if (!sel.options.length && STAGES.length) {
+            sel.innerHTML = STAGES.map(s => `<option value="${s.value}">${s.label}</option>`).join('');
+        }
+        sel.value = (merged.status || 'new');
+        sel.dataset.current = sel.value;
+    }
+}
+
+// ---- Update the candidate's workflow stage (PUT /api/candidates/{id}) ----
+async function saveStageChange() {
+    const sel = document.getElementById('statusStageSelect');
+    const msg = document.getElementById('statusStageMsg');
+    const btn = document.getElementById('statusStageSaveBtn');
+    if (!EDITING_CAND_ID || !sel) return;
+    const newStage = sel.value;
+    if (newStage === sel.dataset.current) {
+        msg.className = 'text-xs mt-2 text-slate-400';
+        msg.textContent = 'No change — stage already set to this value.';
+        msg.classList.remove('hidden');
+        return;
+    }
+    btn.disabled = true;
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Saving…';
+    try {
+        await axios.put(`/api/candidates/${EDITING_CAND_ID}`, { status: newStage });
+        sel.dataset.current = newStage;
+        msg.className = 'text-xs mt-2 text-emerald-600';
+        msg.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Stage updated.';
+        msg.classList.remove('hidden');
+        // Refresh details + history + activity to reflect the change
+        const { data: cand } = await axios.get(`/api/candidates/${EDITING_CAND_ID}`);
+        renderStatusGrid(cand);
+        loadStatusHistory(EDITING_CAND_ID);
+        loadAuditTrail(EDITING_CAND_ID);
+        if (typeof loadCandidates === 'function') loadCandidates();
+    } catch (e) {
+        const serverMsg = (e && e.response && e.response.data && (e.response.data.detail || e.response.data.message)) || e.message || 'Unknown error';
+        msg.className = 'text-xs mt-2 text-rose-600';
+        msg.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1"></i> Failed to update stage: ${serverMsg}`;
+        msg.classList.remove('hidden');
+        console.error('Stage update failed:', e);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    }
+}
+
+// ---- Status history timeline (stage_change events only) ----
+async function loadStatusHistory(candId) {
+    const tl = document.getElementById('statusHistory');
+    if (!tl) return;
+    try {
+        const { data } = await axios.get(`/api/candidates/${candId}/audit`);
+        const stageEvents = (data || []).filter(a => a.action === 'stage_change');
+        if (!stageEvents.length) {
+            tl.innerHTML = '<div class="text-slate-400 text-xs italic">No stage changes recorded yet.</div>';
+            return;
+        }
+        tl.innerHTML = stageEvents.map((a, i) => `
+            <div class="flex items-start gap-3">
+                <div class="flex flex-col items-center">
+                    <div class="w-3 h-3 rounded-full ${i === 0 ? 'bg-blue-600' : 'bg-slate-300'} mt-1"></div>
+                    ${i < stageEvents.length - 1 ? '<div class="w-px flex-1 bg-slate-200 min-h-[18px]"></div>' : ''}
+                </div>
+                <div class="flex-1 pb-1">
+                    <div class="text-slate-800">${a.summary || 'Stage changed'}</div>
+                    <div class="text-[11px] text-slate-400">${a.actor_name || 'system'} · ${(a.occurred_at || '').replace('T', ' ').split('.')[0]}</div>
+                </div>
+            </div>`).join('');
+    } catch (e) {
+        tl.innerHTML = '<div class="text-slate-400 text-xs italic">Could not load history.</div>';
+    }
+}
+
+async function loadAuditTrail(candId) {
+    try {
+        const { data } = await axios.get(`/api/candidates/${candId}/audit`);
+        const tl = document.getElementById('auditTimeline');
+        if (!data || data.length === 0) {
+            tl.innerHTML = '<div class="text-slate-400 text-xs italic">No activity yet.</div>';
+            return;
+        }
+        const ACT_ICONS = {
+            create:'fa-circle-plus text-emerald-500', update:'fa-pen text-amber-500',
+            delete:'fa-trash text-rose-500', assign:'fa-link text-blue-500',
+            unassign:'fa-link-slash text-rose-500', stage_change:'fa-flag text-indigo-500',
+            wizard_step:'fa-floppy-disk text-slate-500', wizard_finalize:'fa-check text-emerald-600',
+            wizard_reopen:'fa-rotate text-amber-500',
+        };
+        tl.innerHTML = data.map(a => {
+            const ico = ACT_ICONS[a.action] || 'fa-circle text-slate-400';
+            return `<div class="flex items-start gap-3">
+                <div class="w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center mt-0.5">
+                    <i class="fa-solid ${ico} text-xs"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="text-slate-800">${a.summary || a.action}</div>
+                    <div class="text-[11px] text-slate-400">${a.actor_name||'system'} · ${(a.occurred_at||'').replace('T',' ').split('.')[0]}</div>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {}
+}
+
+async function loadAssignmentsBlock(candId) {
+    try {
+        const { data } = await axios.get(`/api/candidates/${candId}`);
+        const block = document.getElementById('assignmentsList');
+        if (!data.assignments || data.assignments.length === 0) {
+            block.innerHTML = '<div class="text-slate-400 italic text-xs">Not assigned to any trade.</div>';
+            return;
+        }
+        block.innerHTML = data.assignments.map(a => `
+            <div class="flex items-center justify-between bg-white border border-slate-200 rounded px-2 py-1.5">
+                <div>
+                    <a href="/demands/${a.demand_id}" class="font-semibold text-blue-600 hover:underline">${a.trade}</a>
+                    <span class="text-xs text-slate-400 ml-1">in Demand #${a.demand_id}</span>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[10.5px] font-semibold ${a.status_classes}">${a.status_label}</span>
+            </div>`).join('');
+    } catch(e) {}
+}
+
+// --------------------- Passport OCR Scanner (v8 — primary input on Step 1) ---------------------
+// Full set of fields the OCR pipeline can return, mapped 1:1 to wizard form names.
+// Server-side reference: app/services/passport_vision.py + app/services/passport_ocr.py
+const OCR_MAP_TO_FORM = [
+    'full_name', 'father_name', 'mother_name',
+    'passport_no', 'passport_issue_date', 'passport_expiry_date',
+    'passport_issue_place', 'issuing_authority',
+    'date_of_birth', 'place_of_birth',
+    'gender', 'nationality',
+    'cnic', 'nadra_token_no',
+];
+
+/**
+ * Downscale + re-encode a (possibly huge / rotated) phone photo to a compact
+ * JPEG before uploading for OCR. Caps the longest side at 2200px so printed
+ * passport text stays sharp while the payload stays small. Returns a Blob.
+ * Throws if the browser cannot decode the file (e.g. some HEIC) — caller then
+ * falls back to sending the original bytes (server has pillow-heif).
+ */
+function downscaleImageForOcr(file) {
+    return new Promise((resolve, reject) => {
+        // HEIC often can't be decoded by <img> in some browsers — let the
+        // server handle those untouched.
+        if (/heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name || '')) {
+            return reject(new Error('heic-passthrough'));
+        }
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const MAX = 2200;
+                let { width: w, height: h } = img;
+                if (Math.max(w, h) > MAX) {
+                    const s = MAX / Math.max(w, h);
+                    w = Math.round(w * s); h = Math.round(h * s);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                URL.revokeObjectURL(url);
+                canvas.toBlob(
+                    (blob) => blob ? resolve(blob) : reject(new Error('toBlob-failed')),
+                    'image/jpeg', 0.9
+                );
+            } catch (e) { URL.revokeObjectURL(url); reject(e); }
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode-failed')); };
+        img.src = url;
+    });
+}
+
+/**
+ * v8 OCR scanner. Single function powers both Step-1 PRIMARY card and the
+ * legacy Step-2 button. Auto-fills every wizard field that the AI / MRZ /
+ * tesseract pipeline extracted, then fires Arabic auto-translate for the
+ * candidate's name + father name (Saudi visa forms need both).
+ */
+async function scanPassport(input, opts) {
+    opts = opts || {};
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+
+    // Pick the right status element (Step-1 inline strip OR Step-2 banner)
+    const inline = document.getElementById('ocrInlineStatus');
+    const banner = document.getElementById('ocrStatus');
+    const preview = document.getElementById('ocrPreviewStrip');
+    const chips  = document.getElementById('ocrPreviewChips');
+    const setBusy = (msg) => {
+        if (inline) { inline.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + msg; inline.className = 'text-xs text-indigo-700 font-semibold'; }
+        if (banner) { banner.className = 'mb-3 text-xs rounded-md p-2.5 bg-blue-50 text-blue-800 border border-blue-200'; banner.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> ' + msg; banner.classList.remove('hidden'); }
+    };
+    const setErr = (msg) => {
+        if (inline) { inline.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + msg; inline.className = 'text-xs text-rose-700 font-semibold'; }
+        if (banner) { banner.className = 'mb-3 text-xs rounded-md p-2.5 bg-rose-50 text-rose-800 border border-rose-200'; banner.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-1"></i> ' + msg; banner.classList.remove('hidden'); }
+    };
+    const setOk = (msg) => {
+        if (inline) { inline.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + msg; inline.className = 'text-xs text-emerald-700 font-semibold'; }
+        if (banner) { banner.className = 'mb-3 text-xs rounded-md p-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200'; banner.innerHTML = '<i class="fa-solid fa-check-circle mr-1"></i> ' + msg; banner.classList.remove('hidden'); }
+    };
+
+    setBusy('Scanning passport — AI Vision + MRZ + OCR (full field extraction)…');
+
+    // Phone cameras produce 12MP+ images (often 5-12 MB, sometimes rotated via
+    // EXIF or in HEIC). Downscale + re-encode to JPEG in the browser so the
+    // upload is small/fast and orientation is baked in. (Problem 7)
+    let uploadFile = file;
+    try {
+        uploadFile = await downscaleImageForOcr(file);
+    } catch (e) {
+        // If the browser can't decode it (e.g. HEIC on some browsers), send the
+        // original bytes — the server has pillow-heif to handle it.
+        uploadFile = file;
+    }
+
+    const fd = new FormData();
+    fd.append('file', uploadFile, (file.name || 'passport').replace(/\.[^.]+$/, '') + '.jpg');
+    try {
+        const { data } = await axios.post('/api/ocr/passport', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        if (!data.ok && !data.fields) {
+            setErr(data.error || 'Could not extract — try a sharper image.');
+            return;
+        }
+        const f = data.fields || {};
+        const wf = document.getElementById('wizardForm');
+        const filled = [];
+        const skipped = [];
+        // v9: ALWAYS force-overwrite on OCR. The user complained that previous
+        // versions silently skipped fields if any value was pre-typed. OCR is
+        // the user's deliberate action ("Scan Passport" button) — when they
+        // click it, they want EVERY extracted field to land. We mark each
+        // OCR-filled field with `dataset.ocrFilled='1'` and a green pulse so
+        // they can see exactly what changed. If they want to keep a manual
+        // value, they can re-edit AFTER scanning.
+        OCR_MAP_TO_FORM.forEach(k => {
+            if (!wf.elements[k]) return;
+            const fld = wf.elements[k];
+            if (!f[k]) return;
+            // Trigger Event so any change-listeners (Select2, validation, etc.) react
+            const oldVal = fld.value;
+            fld.value = f[k];
+            fld.dataset.ocrFilled = '1';
+            fld.dispatchEvent(new Event('input',  { bubbles: true }));
+            fld.dispatchEvent(new Event('change', { bubbles: true }));
+            // Pulse animation: stronger if the value actually changed
+            const cls = oldVal === f[k]
+                ? ['ring-1','ring-slate-300','bg-slate-50/30']
+                : ['ring-2','ring-emerald-400','bg-emerald-50/60'];
+            fld.classList.add(...cls);
+            setTimeout(() => fld.classList.remove(...cls), 2400);
+            filled.push(k.replace(/_/g, ' '));
+        });
+        const methodLabel = data.method === 'vision' ? 'AI Vision' : (data.method === 'mrz' ? 'MRZ scan' : 'text OCR');
+
+        // Render extracted-field chips in the Step-1 preview strip
+        if (preview && chips) {
+            const chipHtml = OCR_MAP_TO_FORM.filter(k => f[k]).map(k => {
+                const label = k.replace(/_/g, ' ');
+                return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-emerald-300 text-[11px] text-slate-700">
+                    <i class="fa-solid fa-check text-emerald-600"></i>
+                    <span class="font-semibold uppercase tracking-wide text-[9px] text-slate-500">${label}</span>
+                    <span class="text-slate-800 truncate max-w-[160px]">${String(f[k]).slice(0,40)}</span>
+                </span>`;
+            }).join('');
+            chips.innerHTML = chipHtml || '<span class="text-xs text-slate-400">No structured fields extracted</span>';
+            preview.classList.remove('hidden');
+        }
+
+        const totalFields = OCR_MAP_TO_FORM.filter(k => f[k]).length;
+        let summary = `Extracted via <b>${methodLabel}</b> — <b>${filled.length}</b> of ${totalFields} fields filled.`;
+        setOk(summary);
+        // v9: also fire a toast in the bottom-right for unmistakable feedback
+        try {
+            if (typeof showToast === 'function') {
+                showToast(`OCR success — ${filled.length} field${filled.length===1?'':'s'} auto-filled · ${methodLabel}`, 'success');
+            }
+        } catch(e){}
+
+        // ── v8 NEW: auto-translate English name + father name to Saudi Arabic ──
+        // Fire-and-forget — runs in background so the user can immediately
+        // review the auto-filled fields while translation completes.
+        translateNamesToArabic({ silent: true });
+    } catch (err) {
+        setErr((err.response && err.response.data && err.response.data.detail) || 'OCR failed — please retry.');
+    } finally {
+        input.value = '';
+    }
+}
+
+/**
+ * v8 NEW: translate English name + father name into Saudi Arabic and
+ * auto-fill the Arabic name fields. Can be called automatically after OCR
+ * or manually via the "Translate to Arabic" button on Step 1.
+ */
+async function translateNamesToArabic(opts) {
+    opts = opts || {};
+    const wf = document.getElementById('wizardForm');
+    if (!wf) return;
+    const inline = document.getElementById('ocrInlineStatus');
+    const setInline = (cls, html) => { if (inline) { inline.className = cls; inline.innerHTML = html; } };
+
+    const en_name   = (wf.elements['full_name']        || {}).value || '';
+    const en_father = (wf.elements['father_name']      || {}).value || '';
+    const en_pob    = (wf.elements['place_of_birth']   || {}).value || '';
+
+    if (!en_name && !en_father && !en_pob) {
+        if (!opts.silent) {
+            alert('Type a name first, or scan a passport, then translate.');
+        }
+        return;
+    }
+    if (!opts.silent) setInline('text-xs text-indigo-700 font-semibold', '<i class="fa-solid fa-spinner fa-spin"></i> Translating to Arabic…');
+    try {
+        const { data } = await axios.post('/api/ocr/translate-to-arabic', {
+            full_name:      en_name,
+            father_name:    en_father,
+            place_of_birth: en_pob,
+        });
+        if (data && data.ok) {
+            const ar = data.arabic || {};
+            const filled = [];
+            const setIfEmpty = (key, val) => {
+                const el = wf.elements[key];
+                if (!el || !val) return;
+                if (!el.value || el.dataset.arFilled === '1') {
+                    el.value = val;
+                    el.dataset.arFilled = '1';
+                    el.classList.add('ring-1','ring-emerald-300','bg-emerald-50/40');
+                    setTimeout(() => el.classList.remove('ring-1','ring-emerald-300','bg-emerald-50/40'), 2200);
+                    filled.push(key.replace(/_/g,' '));
+                }
+            };
+            setIfEmpty('name_arabic',           ar.full_name);
+            setIfEmpty('father_name_arabic',    ar.father_name);
+            setIfEmpty('place_of_birth_arabic', ar.place_of_birth);
+            setIfEmpty('issuing_authority_arabic', ar.issuing_authority);
+            if (!opts.silent) {
+                setInline('text-xs text-emerald-700 font-semibold',
+                    `<i class="fa-solid fa-circle-check"></i> Translated to Arabic — filled ${filled.length} field(s).`);
+            } else if (filled.length) {
+                // Even in silent mode, append a tiny note so the user sees translation happened
+                const cur = inline ? inline.innerHTML : '';
+                if (inline) inline.innerHTML = cur + ` · <span class="text-emerald-700">+ ${filled.length} Arabic</span>`;
+            }
+        } else {
+            if (!opts.silent) setInline('text-xs text-rose-700 font-semibold', '<i class="fa-solid fa-triangle-exclamation"></i> Translation unavailable (LLM offline).');
+        }
+    } catch (err) {
+        if (!opts.silent) setInline('text-xs text-rose-700 font-semibold', '<i class="fa-solid fa-triangle-exclamation"></i> Translation failed.');
+    }
+}
+
+async function uploadWizardPhoto(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const status = document.getElementById('wizPhotoStatus');
+    const preview = document.getElementById('wizPhotoPreview');
+    const hidden = document.querySelector('#wizardForm [name="photo"]');
+    status.textContent = 'Uploading…';
+    status.className = 'ml-2 text-xs text-blue-600';
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+        const { data } = await axios.post('/api/candidates/upload-photo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        if (data && data.ok) {
+            if (hidden) hidden.value = data.filename;
+            preview.innerHTML = `<img src="${data.url}" class="w-full h-full object-cover">`;
+            status.textContent = 'Photo uploaded ✓';
+            status.className = 'ml-2 text-xs text-emerald-600';
+        }
+    } catch (err) {
+        status.textContent = (err.response && err.response.data && err.response.data.detail) || 'Upload failed';
+        status.className = 'ml-2 text-xs text-rose-600';
+    } finally {
+        input.value = '';
+    }
+}
+
+function resetWizardPhotoUI(photo) {
+    const preview = document.getElementById('wizPhotoPreview');
+    const hidden = document.querySelector('#wizardForm [name="photo"]');
+    const status = document.getElementById('wizPhotoStatus');
+    if (status) status.textContent = '';
+    if (!preview) return;
+    if (photo) {
+        if (hidden) hidden.value = photo;
+        preview.innerHTML = `<img src="/static/uploads/photos/${photo}" class="w-full h-full object-cover">`;
+    } else {
+        if (hidden) hidden.value = '';
+        preview.innerHTML = '<i class="fa-regular fa-image"></i>';
+    }
+}
+
+// --------------------- Init ---------------------
+(async function init() {
+    // SPEEDY PATH: when embedded as a flyout iframe in wizard mode, the
+    // candidate list, drawer, filters etc. are all hidden — we don't need
+    // to load any of them. Open the centered data-entry modal IMMEDIATELY.
+    const urlParams = new URLSearchParams(window.location.search);
+    const wizardOnly = urlParams.get('wizard') === '1';
+    const editId    = urlParams.get('edit');
+    // ``open`` and ``focus`` are synonyms — both open the candidate
+    // side-panel for the given id. ``focus`` is the public name used
+    // by deep-links from demand_detail.html.
+    const openId    = urlParams.get('open') || urlParams.get('focus');
+    const isFlyoutWizard = {{ 'true' if flyout and wizard_mode else 'false' }};
+
+    await loadStages();
+
+    if (isFlyoutWizard) {
+        // Fire the wizard immediately. The list/filters are not needed
+        // in this embedded mode.
+        if (editId)        await openWizard(parseInt(editId), 'edit');
+        else if (wizardOnly) await openWizard(null);
+        else if (openId)   openView(parseInt(openId));
+        return;
+    }
+
+    // Full page mode: load list + filters in parallel, then auto-open if
+    // requested via query params.
+    await Promise.all([
+        loadFilterOptions(),
+        loadDemandsForFilter(),
+        loadCandidates(),
+    ]);
+    if (openId)         openView(parseInt(openId));
+    else if (editId)    openWizard(parseInt(editId), 'edit');
+    else if (wizardOnly) openWizard(null);
+})();
+</script>
+{% endblock %}
